@@ -4,7 +4,7 @@ import {
   EmbedBuilder,
 } from "discord.js";
 import { randomUUID } from "crypto";
-import { db, stmtInsert, stmtGetByKey } from "../database.js";
+import { getByKey, insertLicenses } from "../database.js";
 import { generateLicenseKey, durationLabel } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
@@ -61,10 +61,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const keys: string[] = [];
-  const now = Date.now();
+  try {
+    const now = Date.now();
+    const entries: Array<{
+      id: string;
+      licenseKey: string;
+      durationType: string;
+      durationValue: number;
+      issuerDiscordId: string;
+      createdAt: number;
+    }> = [];
 
-  const insertMany = db.transaction(() => {
     for (let i = 0; i < amount; i++) {
       let key: string;
       let attempts = 0;
@@ -72,22 +79,36 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         key = generateLicenseKey();
         attempts++;
         if (attempts > 20) throw new Error("Key collision — try again");
-      } while (stmtGetByKey.get(key));
+      } while (await getByKey(key));
 
-      stmtInsert.run(
-        randomUUID(),
-        key,
-        type,
-        type === "PERMANENT" ? 0 : duration,
-        interaction.user.id,
-        now
-      );
-      keys.push(key);
+      entries.push({
+        id: randomUUID(),
+        licenseKey: key,
+        durationType: type,
+        durationValue: type === "PERMANENT" ? 0 : duration,
+        issuerDiscordId: interaction.user.id,
+        createdAt: now,
+      });
     }
-  });
 
-  try {
-    insertMany();
+    await insertLicenses(entries);
+
+    const label = durationLabel(type, duration);
+    const keyBlock = entries.map((e) => `\`${e.licenseKey}\``).join("\n");
+
+    const embed = new EmbedBuilder()
+      .setColor(0x00c853)
+      .setTitle(`🔑 ${amount} Key${amount > 1 ? "s" : ""} Generated`)
+      .addFields(
+        { name: "Type", value: label, inline: true },
+        { name: "Status", value: "🔵 UNUSED", inline: true },
+        { name: "Issued by", value: `<@${interaction.user.id}>`, inline: true },
+        { name: `Key${amount > 1 ? "s" : ""}`, value: keyBlock }
+      )
+      .setFooter({ text: "License Manager • Keys are inactive until first activation" })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
   } catch (err) {
     await interaction.editReply({
       embeds: [
@@ -98,23 +119,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setTimestamp(),
       ],
     });
-    return;
   }
-
-  const label = durationLabel(type, duration);
-  const keyBlock = keys.map((k) => `\`${k}\``).join("\n");
-
-  const embed = new EmbedBuilder()
-    .setColor(0x00c853)
-    .setTitle(`🔑 ${amount} Key${amount > 1 ? "s" : ""} Generated`)
-    .addFields(
-      { name: "Type", value: label, inline: true },
-      { name: "Status", value: "🔵 UNUSED", inline: true },
-      { name: "Issued by", value: `<@${interaction.user.id}>`, inline: true },
-      { name: `Key${amount > 1 ? "s" : ""}`, value: keyBlock }
-    )
-    .setFooter({ text: "License Manager • Keys are inactive until first activation" })
-    .setTimestamp();
-
-  await interaction.editReply({ embeds: [embed] });
 }

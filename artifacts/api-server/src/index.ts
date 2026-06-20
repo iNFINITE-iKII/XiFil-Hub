@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { startBot } from "./bot/bot.js";
+import { initDb } from "./bot/database.js";
 
 const rawPort = process.env["PORT"];
 
@@ -16,13 +17,21 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
+initDb()
+  .then(() => {
+    logger.info("Database initialized");
+
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+      logger.info({ port }, "Server listening");
+    });
+
+    startBot();
+  })
+  .catch((err) => {
+    logger.error({ err }, "Failed to initialize database");
     process.exit(1);
-  }
-
-  logger.info({ port }, "Server listening");
-});
-
-startBot();
+  });

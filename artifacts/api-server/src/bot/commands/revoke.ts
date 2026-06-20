@@ -3,7 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { stmtGetByKey, stmtRevoke } from "../database.js";
+import { getByKey, revokeLicense } from "../database.js";
 import { censorKey } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
@@ -17,7 +17,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true });
 
   const key = (interaction.options.get("key")?.value as string).trim().toUpperCase();
-  const license = stmtGetByKey.get(key);
+  const license = await getByKey(key);
 
   if (!license) {
     await interaction.editReply({
@@ -45,7 +45,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  stmtRevoke.run(key);
+  await revokeLicense(key);
 
   await interaction.editReply({
     embeds: [

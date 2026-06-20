@@ -3,7 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { stmtGetByKey } from "../database.js";
+import { getByKey } from "../database.js";
 import { censorKey, statusColor, statusEmoji, durationLabel } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
@@ -20,7 +20,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true });
 
   const key = (interaction.options.get("key")?.value as string).trim().toUpperCase();
-  const license = stmtGetByKey.get(key);
+  const license = await getByKey(key);
 
   if (!license) {
     await interaction.editReply({

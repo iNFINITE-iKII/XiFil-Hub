@@ -3,7 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
 } from "discord.js";
-import { stmtGetByKey, stmtSetHwid } from "../database.js";
+import { getByKey, setHwid } from "../database.js";
 import { censorKey } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
@@ -22,7 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const key = (interaction.options.get("key")?.value as string).trim().toUpperCase();
   const hwid = (interaction.options.get("hwid")?.value as string).trim();
 
-  const license = stmtGetByKey.get(key);
+  const license = await getByKey(key);
   if (!license) {
     await interaction.editReply({
       embeds: [
@@ -49,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  stmtSetHwid.run(hwid, key);
+  await setHwid(hwid, key);
 
   await interaction.editReply({
     embeds: [

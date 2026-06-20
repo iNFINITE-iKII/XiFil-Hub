@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
-import { stmtGetByKey, stmtActivate, stmtExpire } from "../bot/database.js";
+import { getByKey, activateLicense, expireLicense } from "../bot/database.js";
 import { getDurationMs } from "../bot/utils.js";
 
 const router = Router();
@@ -16,14 +16,15 @@ const limiter = rateLimit({
 // ─────────────────────────────────────────────────────────────
 // Core verification logic (shared by both endpoints)
 // ─────────────────────────────────────────────────────────────
-function verifyLicense(
+async function verifyLicense(
   licenseKey: string,
   hwid: string
-):
+): Promise<
   | { ok: true; code: string; expires_at: number | null; duration_type: string }
-  | { ok: false; status: number; message: string; code: string } {
+  | { ok: false; status: number; message: string; code: string }
+> {
   const key = licenseKey.trim().toUpperCase();
-  const license = stmtGetByKey.get(key);
+  const license = await getByKey(key);
 
   if (!license) {
     return { ok: false, status: 404, message: "Key tidak ditemukan.", code: "NOT_FOUND" };
@@ -36,7 +37,7 @@ function verifyLicense(
   const now = Date.now();
 
   if (license.expires_at !== null && now > license.expires_at) {
-    stmtExpire.run(key);
+    await expireLicense(key);
     return { ok: false, status: 401, message: "Key sudah kadaluarsa.", code: "EXPIRED" };
   }
 
@@ -51,7 +52,7 @@ function verifyLicense(
         : getDurationMs(license.duration_type, license.duration_value);
     const expiresAt = durationMs !== null ? now + durationMs : null;
 
-    stmtActivate.run(hwid, expiresAt as number, key);
+    await activateLicense(hwid, expiresAt, key);
 
     return {
       ok: true,
@@ -83,9 +84,8 @@ function verifyLicense(
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/license/check?key=KEY&hwid=HWID
-// ← Format yang digunakan script Roblox/Lua
 // ─────────────────────────────────────────────────────────────
-router.get("/check", limiter, (req, res) => {
+router.get("/check", limiter, async (req, res) => {
   const key = req.query["key"] as string | undefined;
   const hwid = (req.query["hwid"] as string | undefined) ?? "UNKNOWN";
 
@@ -94,7 +94,7 @@ router.get("/check", limiter, (req, res) => {
     return;
   }
 
-  const result = verifyLicense(key, hwid);
+  const result = await verifyLicense(key, hwid);
 
   if (!result.ok) {
     res.status(result.status).json({ status: "error", message: result.message, code: result.code });
@@ -112,9 +112,8 @@ router.get("/check", limiter, (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/license/activate
-// ← Format standar untuk software klien desktop/lainnya
 // ─────────────────────────────────────────────────────────────
-router.post("/activate", limiter, (req, res) => {
+router.post("/activate", limiter, async (req, res) => {
   const { license_key, hwid } = req.body as {
     license_key?: string;
     hwid?: string;
@@ -129,7 +128,7 @@ router.post("/activate", limiter, (req, res) => {
     return;
   }
 
-  const result = verifyLicense(license_key, hwid);
+  const result = await verifyLicense(license_key, hwid);
 
   if (!result.ok) {
     res.status(result.status).json({ error: result.message, code: result.code });
