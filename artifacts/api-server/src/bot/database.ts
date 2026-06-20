@@ -6,7 +6,7 @@ if (!connectionString) {
 }
 
 export const sql = postgres(connectionString, {
-  ssl: "require",
+  ssl: process.env["NODE_ENV"] === "production" ? "require" : false,
   max: 10,
   idle_timeout: 30,
   types: {
