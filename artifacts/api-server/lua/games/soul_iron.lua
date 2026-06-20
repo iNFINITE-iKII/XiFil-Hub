@@ -298,7 +298,7 @@ startWithDRM(function(key, hwid)
             OrbitRadius = 12,
             OrbitSpeed = 5,
             AutoCFrame = true,
-            CFrameDelay = 0.001,
+            CFrameDelay = 0.05,
             PrioritizeChest = true,
             SelectedNormalNpcId = nil,
             SelectedBossNpcId = nil,
