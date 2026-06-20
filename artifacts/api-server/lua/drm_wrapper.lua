@@ -83,7 +83,7 @@ local function checkLicense(key, hwid)
     )
 
     local ok, response = pcall(function()
-        return game:GetService("HttpService"):GetAsync(url, true)
+        return game:HttpGet(url, true)
     end)
 
     if not ok then
