@@ -5,8 +5,12 @@ import * as checkkey from "../commands/checkkey.js";
 import * as sethwid from "../commands/sethwid.js";
 import * as resethwid from "../commands/resethwid.js";
 import * as revoke from "../commands/revoke.js";
+import * as whitelist from "../commands/whitelist.js";
+import * as setmaxhwid from "../commands/setmaxhwid.js";
+import * as userkey from "../commands/userkey.js";
+import * as panel from "../commands/panel.js";
 
-const commands = [genkey, checkkey, sethwid, resethwid, revoke];
+const commands = [genkey, checkkey, sethwid, resethwid, revoke, whitelist, setmaxhwid, userkey, panel];
 
 export async function onReady(client: Client): Promise<void> {
   logger.info({ tag: client.user?.tag }, "Discord bot logged in");

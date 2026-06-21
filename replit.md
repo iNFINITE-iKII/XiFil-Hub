@@ -36,12 +36,34 @@ A Discord bot + REST API for managing software license keys with HWID locking, t
 
 ## Product
 
+### Slash Commands (Admin only unless noted)
 - `/genkey [type] [duration] [amount]` — Generate 1–50 cryptographically secure license keys
-- `/checkkey [key]` — View key status, HWID binding, and countdown timer
+- `/checkkey [key]` — View key status, HWID binding, and countdown timer (all roles)
 - `/sethwid [key] [hwid]` — Manually bind HWID (admin override)
-- `/resethwid [key]` — Remove HWID binding (hardware migration)
+- `/resethwid [key]` — Reset HWID — Admin: always; VIP: 1x per 7 days (own keys only)
+- `/setmaxhwid [key] [max]` — Set max HWID reset limit per key (-1 = unlimited)
 - `/revoke [key]` — Permanently block a key
+- `/whitelist add [user] [key_count]` — Whitelist user + auto-generate PERMANENT keys for them
+- `/whitelist remove [user]` — Remove user from whitelist
+- `/whitelist list` — View all whitelisted users
+- `/userkey [user]` — See all keys owned by a user
+- `/userkey [key]` — See who owns a specific key
+- `/panel` — Post interactive VIP panel with buttons to current channel
 - `POST /api/license/activate` — Client software calls this to activate/verify a license
+
+### Panel Buttons (posted via /panel)
+- 🎖️ **Get Role VIP** — Checks whitelist, assigns VIP role automatically
+- 🔑 **Get Key** — Shows user their assigned license keys (ephemeral)
+- 📜 **Get Script** — Shows Roblox loadstring script (VIP only, ephemeral)
+
+### VIP Features
+- VIP can use `/resethwid` on their own keys (1x per 7 days cooldown)
+- VIP can click Get Role, Get Key, Get Script buttons in panel
+
+## Environment Variables
+
+- `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` — Discord bot credentials
+- `VIP_ROLE_NAME` — Name of the VIP Discord role (default: `VIP`)
 
 ## REST API
 
