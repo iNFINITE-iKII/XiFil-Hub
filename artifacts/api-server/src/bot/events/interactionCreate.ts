@@ -1,4 +1,10 @@
-import { Interaction, ChatInputCommandInteraction, EmbedBuilder, ButtonInteraction } from "discord.js";
+import {
+  Interaction,
+  ChatInputCommandInteraction,
+  EmbedBuilder,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+} from "discord.js";
 import { logger } from "../../lib/logger.js";
 import * as genkey from "../commands/genkey.js";
 import * as checkkey from "../commands/checkkey.js";
@@ -9,7 +15,8 @@ import * as whitelist from "../commands/whitelist.js";
 import * as setmaxhwid from "../commands/setmaxhwid.js";
 import * as userkey from "../commands/userkey.js";
 import * as panel from "../commands/panel.js";
-import { handleButton } from "../handlers/buttonHandler.js";
+import * as deletekey from "../commands/deletekey.js";
+import { handleButton, handleResetHwidModal } from "../handlers/buttonHandler.js";
 
 const commandMap = new Map([
   ["genkey", genkey],
@@ -21,35 +28,63 @@ const commandMap = new Map([
   ["setmaxhwid", setmaxhwid],
   ["userkey", userkey],
   ["panel", panel],
+  ["deletekey", deletekey],
 ]);
 
 export async function onInteractionCreate(interaction: Interaction): Promise<void> {
+  // ─── Button ────────────────────────────────────────────────────────────
   if (interaction.isButton()) {
     logger.info(
       { user: interaction.user.tag, button: interaction.customId },
       "Button clicked"
     );
-
     try {
       await handleButton(interaction as ButtonInteraction);
     } catch (err) {
       logger.error({ err, button: interaction.customId }, "Button handler error");
-
-      const errorEmbed = new EmbedBuilder()
+      const embed = new EmbedBuilder()
         .setColor(0xd50000)
         .setTitle("❌ Internal Error")
         .setDescription("Terjadi error saat memproses tombol ini.")
         .setTimestamp();
-
-      if (interaction.deferred || interaction.replied) {
-        await (interaction as ButtonInteraction).editReply({ embeds: [errorEmbed] }).catch(() => null);
+      const btn = interaction as ButtonInteraction;
+      if (btn.deferred || btn.replied) {
+        await btn.editReply({ embeds: [embed] }).catch(() => null);
       } else {
-        await (interaction as ButtonInteraction).reply({ embeds: [errorEmbed], ephemeral: true }).catch(() => null);
+        await btn.reply({ embeds: [embed], ephemeral: true }).catch(() => null);
       }
     }
     return;
   }
 
+  // ─── Modal Submit ──────────────────────────────────────────────────────
+  if (interaction.isModalSubmit()) {
+    const modal = interaction as ModalSubmitInteraction;
+    logger.info(
+      { user: interaction.user.tag, modal: modal.customId },
+      "Modal submitted"
+    );
+    try {
+      if (modal.customId === "reset_hwid_modal") {
+        await handleResetHwidModal(modal);
+      }
+    } catch (err) {
+      logger.error({ err, modal: modal.customId }, "Modal handler error");
+      const embed = new EmbedBuilder()
+        .setColor(0xd50000)
+        .setTitle("❌ Internal Error")
+        .setDescription("Terjadi error saat memproses form ini.")
+        .setTimestamp();
+      if (modal.deferred || modal.replied) {
+        await modal.editReply({ embeds: [embed] }).catch(() => null);
+      } else {
+        await modal.reply({ embeds: [embed], ephemeral: true }).catch(() => null);
+      }
+    }
+    return;
+  }
+
+  // ─── Slash Command ─────────────────────────────────────────────────────
   if (!interaction.isChatInputCommand()) return;
 
   const cmd = commandMap.get(interaction.commandName);
@@ -64,19 +99,15 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
     await cmd.execute(interaction as ChatInputCommandInteraction);
   } catch (err) {
     logger.error({ err, command: interaction.commandName }, "Command error");
-
-    const errorEmbed = new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setColor(0xd50000)
       .setTitle("❌ Internal Error")
       .setDescription("Terjadi error saat menjalankan perintah ini.")
       .setTimestamp();
-
     if (interaction.deferred || interaction.replied) {
-      await interaction.editReply({ embeds: [errorEmbed] }).catch(() => null);
+      await interaction.editReply({ embeds: [embed] }).catch(() => null);
     } else {
-      await interaction
-        .reply({ embeds: [errorEmbed], ephemeral: true })
-        .catch(() => null);
+      await interaction.reply({ embeds: [embed], ephemeral: true }).catch(() => null);
     }
   }
 }

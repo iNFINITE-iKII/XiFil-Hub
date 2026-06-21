@@ -31,6 +31,7 @@ export interface License {
   created_at: number;
   max_hwid_resets: number;
   hwid_reset_count: number;
+  hwid_reset_period: "DAILY" | "WEEKLY" | "MONTHLY" | "UNLIMITED";
 }
 
 export interface WhitelistEntry {
@@ -70,11 +71,13 @@ export async function initDb(): Promise<void> {
       issuer_discord_id TEXT NOT NULL,
       created_at BIGINT NOT NULL,
       max_hwid_resets INT DEFAULT -1,
-      hwid_reset_count INT DEFAULT 0
+      hwid_reset_count INT DEFAULT 0,
+      hwid_reset_period TEXT DEFAULT 'WEEKLY'
     )
   `;
   await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_hwid_resets INT DEFAULT -1`;
   await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS hwid_reset_count INT DEFAULT 0`;
+  await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS hwid_reset_period TEXT DEFAULT 'WEEKLY'`;
   await sql`CREATE INDEX IF NOT EXISTS idx_license_key ON licenses(license_key)`;
 
   await sql`
@@ -182,10 +185,23 @@ export async function expireLicense(licenseKey: string): Promise<void> {
   `;
 }
 
-export async function setMaxHwidResets(licenseKey: string, maxResets: number): Promise<void> {
+export async function setMaxHwidResets(
+  licenseKey: string,
+  maxResets: number,
+  period: string
+): Promise<void> {
   await sql`
-    UPDATE licenses SET max_hwid_resets = ${maxResets} WHERE license_key = ${licenseKey}
+    UPDATE licenses SET max_hwid_resets = ${maxResets}, hwid_reset_period = ${period}
+    WHERE license_key = ${licenseKey}
   `;
+}
+
+export async function deleteLicense(licenseKey: string): Promise<void> {
+  await sql.begin(async (tx) => {
+    await tx`DELETE FROM hwid_reset_log WHERE license_key = ${licenseKey}`;
+    await tx`DELETE FROM user_keys WHERE license_key = ${licenseKey}`;
+    await tx`DELETE FROM licenses WHERE license_key = ${licenseKey}`;
+  });
 }
 
 // ─── Whitelist functions ───────────────────────────────────────────────────
@@ -210,7 +226,7 @@ export async function addToWhitelist(entry: {
     VALUES (${entry.id}, ${entry.discordUserId}, ${entry.discordUsername}, ${entry.keyCount}, ${entry.addedBy}, ${entry.addedAt})
     ON CONFLICT (discord_user_id) DO UPDATE SET
       discord_username = ${entry.discordUsername},
-      key_count = ${entry.keyCount},
+      key_count = whitelist.key_count + ${entry.keyCount},
       added_by = ${entry.addedBy},
       added_at = ${entry.addedAt}
   `;
@@ -231,6 +247,23 @@ export async function setVipRoleAssigned(discordUserId: string): Promise<void> {
   await sql`
     UPDATE whitelist SET vip_role_assigned = TRUE WHERE discord_user_id = ${discordUserId}
   `;
+}
+
+export async function removeAllUserKeysAndLicenses(discordUserId: string): Promise<string[]> {
+  const userKeys = await sql<UserKey[]>`
+    SELECT * FROM user_keys WHERE discord_user_id = ${discordUserId}
+  `;
+  const licenseKeys = userKeys.map((uk) => uk.license_key);
+
+  await sql.begin(async (tx) => {
+    for (const key of licenseKeys) {
+      await tx`DELETE FROM hwid_reset_log WHERE license_key = ${key}`;
+      await tx`DELETE FROM licenses WHERE license_key = ${key}`;
+    }
+    await tx`DELETE FROM user_keys WHERE discord_user_id = ${discordUserId}`;
+  });
+
+  return licenseKeys;
 }
 
 // ─── User Keys functions ───────────────────────────────────────────────────
@@ -259,12 +292,6 @@ export async function getKeyOwner(licenseKey: string): Promise<UserKey | null> {
     SELECT * FROM user_keys WHERE license_key = ${licenseKey}
   `;
   return rows[0] ?? null;
-}
-
-export async function removeUserKey(discordUserId: string, licenseKey: string): Promise<void> {
-  await sql`
-    DELETE FROM user_keys WHERE discord_user_id = ${discordUserId} AND license_key = ${licenseKey}
-  `;
 }
 
 // ─── HWID Reset Log functions ──────────────────────────────────────────────

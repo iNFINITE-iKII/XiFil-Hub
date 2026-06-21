@@ -2,13 +2,15 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
+  PermissionFlagsBits,
 } from "discord.js";
 import { getByKey, setHwid } from "../database.js";
 import { censorKey } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
   .setName("sethwid")
-  .setDescription("Manually bind a license key to a specific HWID")
+  .setDescription("Manually bind a license key to a specific HWID — Admin only")
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((opt) =>
     opt.setName("key").setDescription("The license key").setRequired(true)
   )

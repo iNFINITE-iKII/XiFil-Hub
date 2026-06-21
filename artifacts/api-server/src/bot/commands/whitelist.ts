@@ -3,6 +3,7 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   PermissionFlagsBits,
+  GuildMember,
 } from "discord.js";
 import { randomUUID } from "crypto";
 import {
@@ -13,12 +14,14 @@ import {
   assignKeyToUser,
   insertLicenses,
   getByKey,
+  removeAllUserKeysAndLicenses,
 } from "../database.js";
-import { generateLicenseKey } from "../utils.js";
+import { generateLicenseKey, durationLabel } from "../utils.js";
+import { logger } from "../../lib/logger.js";
 
 export const data = new SlashCommandBuilder()
   .setName("whitelist")
-  .setDescription("Kelola whitelist VIP (Admin only)")
+  .setDescription("Kelola whitelist VIP — Admin only")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) =>
     sub
@@ -35,11 +38,31 @@ export const data = new SlashCommandBuilder()
           .setMinValue(1)
           .setMaxValue(50)
       )
+      .addStringOption((opt) =>
+        opt
+          .setName("type")
+          .setDescription("Tipe key yang akan di-generate (default: PERMANENT)")
+          .setRequired(false)
+          .addChoices(
+            { name: "Permanent (Selamanya)", value: "PERMANENT" },
+            { name: "Per Jam", value: "HOURLY" },
+            { name: "Per Hari", value: "DAILY" },
+            { name: "Per Minggu", value: "WEEKLY" }
+          )
+      )
+      .addIntegerOption((opt) =>
+        opt
+          .setName("duration")
+          .setDescription("Durasi (contoh: 7 untuk 7 hari). Diabaikan untuk PERMANENT.")
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(9999)
+      )
   )
   .addSubcommand((sub) =>
     sub
       .setName("remove")
-      .setDescription("Hapus user dari whitelist VIP")
+      .setDescription("Hapus user dari whitelist VIP (role & key otomatis dihapus)")
       .addUserOption((opt) =>
         opt.setName("user").setDescription("User yang akan dihapus dari whitelist").setRequired(true)
       )
@@ -53,11 +76,25 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const sub = interaction.options.getSubcommand();
 
+  // ─── ADD ─────────────────────────────────────────────────────────────────
   if (sub === "add") {
     const target = interaction.options.getUser("user", true);
     const keyCount = interaction.options.getInteger("key_count", true);
+    const keyType = (interaction.options.getString("type") ?? "PERMANENT").toUpperCase();
+    const duration = interaction.options.getInteger("duration") ?? 1;
 
-    const existing = await getWhitelistUser(target.id);
+    if (keyType !== "PERMANENT" && !interaction.options.getInteger("duration")) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xd50000)
+            .setTitle("❌ Parameter Kurang")
+            .setDescription("Kamu harus mengisi `duration` untuk tipe key non-PERMANENT.")
+            .setTimestamp(),
+        ],
+      });
+      return;
+    }
 
     const now = Date.now();
     const generatedKeys: string[] = [];
@@ -84,8 +121,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       licenseEntries.push({
         id: randomUUID(),
         licenseKey: key,
-        durationType: "PERMANENT",
-        durationValue: 0,
+        durationType: keyType,
+        durationValue: keyType === "PERMANENT" ? 0 : duration,
         issuerDiscordId: interaction.user.id,
         createdAt: now,
       });
@@ -102,16 +139,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       });
     }
 
+    const existing = await getWhitelistUser(target.id);
     await addToWhitelist({
       id: existing?.id ?? randomUUID(),
       discordUserId: target.id,
       discordUsername: target.username,
-      keyCount: existing ? existing.key_count + keyCount : keyCount,
+      keyCount: keyCount,
       addedBy: interaction.user.id,
       addedAt: now,
     });
 
     const keyBlock = generatedKeys.map((k) => `\`${k}\``).join("\n");
+    const typeLabel = durationLabel(keyType, duration);
 
     await interaction.editReply({
       embeds: [
@@ -120,7 +159,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setTitle("✅ Whitelist Berhasil")
           .setDescription(`<@${target.id}> telah ditambahkan ke whitelist VIP.`)
           .addFields(
-            { name: "Jumlah Key", value: `${keyCount} key PERMANENT`, inline: true },
+            { name: "Tipe Key", value: typeLabel, inline: true },
+            { name: "Jumlah Key", value: `${keyCount}`, inline: true },
             { name: "Ditambahkan oleh", value: `<@${interaction.user.id}>`, inline: true },
             { name: "Keys yang Digenerate", value: keyBlock }
           )
@@ -131,11 +171,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
+  // ─── REMOVE ───────────────────────────────────────────────────────────────
   if (sub === "remove") {
     const target = interaction.options.getUser("user", true);
-    const removed = await removeFromWhitelist(target.id);
 
-    if (!removed) {
+    const entry = await getWhitelistUser(target.id);
+    if (!entry) {
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
@@ -148,19 +189,50 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
+    const deletedKeys = await removeAllUserKeysAndLicenses(target.id);
+    await removeFromWhitelist(target.id);
+
+    let roleStatus = "Tidak diproses";
+    const guild = interaction.guild;
+    if (guild) {
+      try {
+        const member = await guild.members.fetch(target.id).catch(() => null);
+        if (member) {
+          const vipRoleName = process.env["VIP_ROLE_NAME"] ?? "VIP";
+          const vipRole = guild.roles.cache.find((r) => r.name === vipRoleName);
+          if (vipRole && (member as GuildMember).roles.cache.has(vipRole.id)) {
+            await (member as GuildMember).roles.remove(vipRole, "Removed from VIP whitelist");
+            roleStatus = "✅ Role VIP dicabut";
+          } else {
+            roleStatus = "ℹ️ Tidak punya role VIP";
+          }
+        } else {
+          roleStatus = "⚠️ User tidak ada di server";
+        }
+      } catch (err) {
+        logger.error({ err }, "Failed to remove VIP role on whitelist remove");
+        roleStatus = "❌ Gagal mencabut role";
+      }
+    }
+
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
           .setTitle("🗑️ Whitelist Dihapus")
           .setDescription(`<@${target.id}> telah dihapus dari whitelist VIP.`)
-          .addFields({ name: "Dihapus oleh", value: `<@${interaction.user.id}>`, inline: true })
+          .addFields(
+            { name: "Keys Dihapus", value: `${deletedKeys.length} key dihapus`, inline: true },
+            { name: "Status Role", value: roleStatus, inline: true },
+            { name: "Dihapus oleh", value: `<@${interaction.user.id}>`, inline: true }
+          )
           .setTimestamp(),
       ],
     });
     return;
   }
 
+  // ─── LIST ────────────────────────────────────────────────────────────────
   if (sub === "list") {
     const list = await getAllWhitelist();
 
@@ -181,7 +253,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .slice(0, 25)
       .map(
         (e, i) =>
-          `**${i + 1}.** <@${e.discord_user_id}> — ${e.key_count} keys — VIP: ${e.vip_role_assigned ? "✅" : "❌"}`
+          `**${i + 1}.** <@${e.discord_user_id}> — **${e.key_count}** key — VIP: ${e.vip_role_assigned ? "✅" : "❌"}`
       )
       .join("\n");
 

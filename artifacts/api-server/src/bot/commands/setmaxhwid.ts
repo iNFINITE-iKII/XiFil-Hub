@@ -9,7 +9,7 @@ import { censorKey } from "../utils.js";
 
 export const data = new SlashCommandBuilder()
   .setName("setmaxhwid")
-  .setDescription("Set batas maksimal reset HWID untuk sebuah key (Admin only)")
+  .setDescription("Set batas reset HWID dan periode cooldown untuk sebuah key — Admin only")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((opt) =>
     opt.setName("key").setDescription("License key yang akan diubah").setRequired(true)
@@ -17,10 +17,22 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((opt) =>
     opt
       .setName("max")
-      .setDescription("Jumlah maksimal reset (-1 = unlimited)")
+      .setDescription("Jumlah maksimal reset per periode (-1 = unlimited)")
       .setRequired(true)
       .setMinValue(-1)
       .setMaxValue(999)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName("period")
+      .setDescription("Seberapa sering user bisa reset (default: Per Minggu)")
+      .setRequired(false)
+      .addChoices(
+        { name: "Per Hari (1x/24jam)", value: "DAILY" },
+        { name: "Per Minggu (1x/7hari)", value: "WEEKLY" },
+        { name: "Per Bulan (1x/30hari)", value: "MONTHLY" },
+        { name: "Tidak Ada Cooldown", value: "UNLIMITED" }
+      )
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -28,6 +40,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const key = (interaction.options.get("key")?.value as string).trim().toUpperCase();
   const max = interaction.options.get("max")?.value as number;
+  const period = (interaction.options.get("period")?.value as string) ?? "WEEKLY";
 
   const license = await getByKey(key);
 
@@ -44,18 +57,26 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  await setMaxHwidResets(key, max);
+  await setMaxHwidResets(key, max, period);
 
-  const maxLabel = max === -1 ? "**Unlimited** (tidak ada batas)" : `**${max}x**`;
+  const periodLabel: Record<string, string> = {
+    DAILY: "Per Hari (1x/24jam)",
+    WEEKLY: "Per Minggu (1x/7hari)",
+    MONTHLY: "Per Bulan (1x/30hari)",
+    UNLIMITED: "Tidak Ada Cooldown",
+  };
+
+  const maxLabel = max === -1 ? "**Unlimited**" : `**${max}x** per periode`;
 
   await interaction.editReply({
     embeds: [
       new EmbedBuilder()
         .setColor(0x00c853)
-        .setTitle("✅ Max HWID Reset Diset")
-        .setDescription(`Batas reset HWID untuk key \`${censorKey(key)}\` telah diubah.`)
+        .setTitle("✅ Pengaturan Reset HWID Diupdate")
+        .setDescription(`Pengaturan reset HWID untuk key \`${censorKey(key)}\` telah diubah.`)
         .addFields(
           { name: "Batas Reset", value: maxLabel, inline: true },
+          { name: "Periode", value: periodLabel[period] ?? period, inline: true },
           { name: "Reset Sudah Dilakukan", value: `${license.hwid_reset_count}x`, inline: true },
           { name: "Admin", value: `<@${interaction.user.id}>`, inline: true }
         )

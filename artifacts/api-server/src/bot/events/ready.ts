@@ -9,8 +9,12 @@ import * as whitelist from "../commands/whitelist.js";
 import * as setmaxhwid from "../commands/setmaxhwid.js";
 import * as userkey from "../commands/userkey.js";
 import * as panel from "../commands/panel.js";
+import * as deletekey from "../commands/deletekey.js";
 
-const commands = [genkey, checkkey, sethwid, resethwid, revoke, whitelist, setmaxhwid, userkey, panel];
+const commands = [
+  genkey, checkkey, sethwid, resethwid, revoke,
+  whitelist, setmaxhwid, userkey, panel, deletekey,
+];
 
 export async function onReady(client: Client): Promise<void> {
   logger.info({ tag: client.user?.tag }, "Discord bot logged in");
@@ -27,10 +31,7 @@ export async function onReady(client: Client): Promise<void> {
     await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
       body: commandData,
     });
-    logger.info(
-      { count: commandData.length },
-      "Slash commands registered successfully"
-    );
+    logger.info({ count: commandData.length }, "Slash commands registered successfully");
   } catch (err: unknown) {
     const apiErr = err as { code?: number; status?: number };
     if (apiErr?.code === 50001 || apiErr?.status === 403) {
