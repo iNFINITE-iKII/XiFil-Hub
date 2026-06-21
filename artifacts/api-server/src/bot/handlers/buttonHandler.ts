@@ -10,7 +10,6 @@ import {
   TextChannel,
   ButtonBuilder,
   ButtonStyle,
-  ThreadChannel,
 } from "discord.js";
 import { randomUUID } from "crypto";
 import {
@@ -24,8 +23,11 @@ import {
   addToWhitelist,
   assignKeyToUser,
   insertLicenses,
+  getPendingTicket,
+  addPendingTicket,
+  removePendingTicket,
 } from "../database.js";
-import { generateLicenseKey, statusEmoji, durationLabel } from "../utils.js";
+import { generateLicenseKey, statusEmoji, durationLabel, getDurationMs } from "../utils.js";
 import {
   logHwidReset as discordLogHwidReset,
   logWhitelistAdd,
@@ -51,6 +53,8 @@ const PERIOD_LABEL: Record<string, string> = {
   UNLIMITED: "Tanpa Cooldown",
 };
 
+// ─── Main router ──────────────────────────────────────────────────────────
+
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const { customId } = interaction;
 
@@ -67,13 +71,13 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   } else if (customId === "get_script") {
     await handleGetScript(interaction);
   } else if (customId.startsWith("approve_ticket_")) {
-    await handleApproveTicket(interaction);
+    await handleApproveTicketButton(interaction);
   } else if (customId.startsWith("reject_ticket_")) {
     await handleRejectTicket(interaction);
   }
 }
 
-// ─── Whitelist Check Helper ────────────────────────────────────────────────
+// ─── Whitelist check helper ────────────────────────────────────────────────
 
 async function requireWhitelist(interaction: ButtonInteraction): Promise<boolean> {
   const entry = await getWhitelistUser(interaction.user.id);
@@ -82,9 +86,10 @@ async function requireWhitelist(interaction: ButtonInteraction): Promise<boolean
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
-          .setTitle("❌ Tidak Terdaftar di Whitelist")
+          .setTitle("❌ Akses Ditolak")
           .setDescription(
-            "Fitur ini memerlukan whitelist VIP.\nGunakan tombol **Request Akses** atau hubungi admin."
+            "Fitur ini hanya tersedia untuk member yang terdaftar di whitelist VIP.\n" +
+            "Ajukan permohonan melalui tombol **Request Akses** atau hubungi Administrator."
           )
           .setTimestamp(),
       ],
@@ -104,7 +109,7 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
   const entry = await getWhitelistUser(interaction.user.id);
   const guild = interaction.guild;
   if (!guild) {
-    await interaction.editReply({ content: "Perintah ini hanya bisa digunakan di server." });
+    await interaction.editReply({ content: "Perintah ini hanya dapat digunakan di dalam server." });
     return;
   }
 
@@ -116,8 +121,11 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
-          .setTitle("❌ Role Tidak Ditemukan")
-          .setDescription(`Role **${vipRoleName}** tidak ada di server. Minta admin buat role itu.`)
+          .setTitle("❌ Konfigurasi Role Tidak Ditemukan")
+          .setDescription(
+            `Role **${vipRoleName}** belum tersedia di server ini.\n` +
+            "Mohon hubungi Administrator untuk menyelesaikan konfigurasi."
+          )
           .setTimestamp(),
       ],
     });
@@ -130,8 +138,8 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
       embeds: [
         new EmbedBuilder()
           .setColor(0xff6d00)
-          .setTitle("⚠️ Sudah Punya Role VIP")
-          .setDescription(`Kamu sudah memiliki role **${vipRoleName}**!`)
+          .setTitle("ℹ️ Role Sudah Aktif")
+          .setDescription(`Anda sudah memiliki role **${vipRoleName}**.`)
           .setTimestamp(),
       ],
     });
@@ -146,11 +154,13 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
       embeds: [
         new EmbedBuilder()
           .setColor(0x00c853)
-          .setTitle("🎖️ Role VIP Berhasil Diklaim!")
+          .setTitle("🎖️ Role VIP Berhasil Diklaim")
           .setDescription(
-            `Selamat <@${interaction.user.id}>! Kamu mendapatkan role **${vipRoleName}**.\nGunakan tombol **Get Key** untuk mengambil license key kamu.`
+            `Selamat <@${interaction.user.id}>! Role **${vipRoleName}** telah berhasil diberikan.\n\n` +
+            "Gunakan tombol **Get Key** untuk mengambil license key Anda."
           )
-          .addFields({ name: "Jumlah Key", value: `${entry!.key_count} key`, inline: true })
+          .addFields({ name: "Total Key Terdaftar", value: `${entry!.key_count} key`, inline: true })
+          .setFooter({ text: "XiFil Hub • License Manager" })
           .setTimestamp(),
       ],
     });
@@ -162,7 +172,8 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
           .setColor(0xd50000)
           .setTitle("❌ Gagal Memberikan Role")
           .setDescription(
-            "Bot tidak bisa memberikan role.\nPastikan posisi role bot **di atas** role VIP di pengaturan server."
+            "Bot tidak memiliki izin untuk memberikan role ini.\n" +
+            "Pastikan posisi role bot berada **di atas** role VIP di pengaturan server."
           )
           .setTimestamp(),
       ],
@@ -184,8 +195,11 @@ async function handleGetKey(interaction: ButtonInteraction): Promise<void> {
       embeds: [
         new EmbedBuilder()
           .setColor(0xff6d00)
-          .setTitle("🔑 Tidak Ada Key")
-          .setDescription("Kamu belum memiliki key. Hubungi admin.")
+          .setTitle("🔑 Belum Ada Key Terdaftar")
+          .setDescription(
+            "Saat ini Anda belum memiliki license key yang terdaftar.\n" +
+            "Hubungi Administrator untuk mendapatkan key."
+          )
           .setTimestamp(),
       ],
     });
@@ -207,7 +221,10 @@ async function handleGetKey(interaction: ButtonInteraction): Promise<void> {
 
     fields.push({
       name: `${statusEmoji(license.status)} \`${uk.license_key}\``,
-      value: `**Status:** ${license.status} • **Tipe:** ${durationLabel(license.duration_type, license.duration_value)}\n**Expired:** ${expiryText}${license.label ? `\n📝 *${license.label}*` : ""}`,
+      value:
+        `**Status:** ${license.status} • **Tipe:** ${durationLabel(license.duration_type, license.duration_value)}\n` +
+        `**Berlaku hingga:** ${expiryText}` +
+        (license.label ? `\n📝 *${license.label}*` : ""),
       inline: false,
     });
   }
@@ -216,31 +233,27 @@ async function handleGetKey(interaction: ButtonInteraction): Promise<void> {
     embeds: [
       new EmbedBuilder()
         .setColor(0x00c853)
-        .setTitle(`🔑 Key Kamu (${userKeys.length} key)`)
-        .setDescription("Berikut license key yang terdaftar untuk akun kamu:")
+        .setTitle(`🔑 License Key Anda (${userKeys.length} key)`)
+        .setDescription("Berikut adalah license key yang terdaftar pada akun Anda:")
         .addFields(fields)
-        .setFooter({ text: "License Manager • Jaga kerahasiaan key kamu!" })
+        .setFooter({ text: "XiFil Hub • Jaga kerahasiaan key Anda dan jangan bagikan kepada siapapun." })
         .setTimestamp(),
     ],
   });
 }
 
-// ─── Reset HWID (Modal trigger) ───────────────────────────────────────────
+// ─── Reset HWID Button → Modal ────────────────────────────────────────────
 
 async function handleResetHwidButton(interaction: ButtonInteraction): Promise<void> {
-  const modal = new ModalBuilder()
-    .setCustomId("reset_hwid_modal")
-    .setTitle("🔄 Reset HWID");
-
+  const modal = new ModalBuilder().setCustomId("reset_hwid_modal").setTitle("🔄 Reset HWID");
   const keyInput = new TextInputBuilder()
     .setCustomId("hwid_key_input")
-    .setLabel("Masukkan License Key kamu")
+    .setLabel("Masukkan License Key Anda")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setPlaceholder("XXXX-XXXX-XXXX-XXXX")
     .setMinLength(19)
     .setMaxLength(19);
-
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(keyInput));
   await interaction.showModal(modal);
 }
@@ -256,8 +269,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
-          .setTitle("❌ Tidak Terdaftar di Whitelist")
-          .setDescription("Fitur ini memerlukan whitelist VIP. Hubungi admin.")
+          .setTitle("❌ Akses Ditolak")
+          .setDescription("Fitur ini hanya tersedia untuk member whitelist VIP.")
           .setTimestamp(),
       ],
     });
@@ -270,7 +283,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
   if (!license) {
     await interaction.editReply({
       embeds: [
-        new EmbedBuilder().setColor(0xd50000).setTitle("❌ Key Tidak Ditemukan").setTimestamp(),
+        new EmbedBuilder().setColor(0xd50000).setTitle("❌ Key Tidak Ditemukan")
+          .setDescription("License key yang Anda masukkan tidak terdaftar di sistem.").setTimestamp(),
       ],
     });
     return;
@@ -279,7 +293,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
   if (license.status === "REVOKED") {
     await interaction.editReply({
       embeds: [
-        new EmbedBuilder().setColor(0xd50000).setTitle("❌ Key Dicabut").setTimestamp(),
+        new EmbedBuilder().setColor(0xd50000).setTitle("❌ Key Telah Dinonaktifkan")
+          .setDescription("Key ini telah dicabut oleh Administrator.").setTimestamp(),
       ],
     });
     return;
@@ -288,11 +303,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
   if (!license.hwid_hash) {
     await interaction.editReply({
       embeds: [
-        new EmbedBuilder()
-          .setColor(0xff6d00)
-          .setTitle("⚠️ Tidak Ada HWID")
-          .setDescription("Key ini belum terikat ke perangkat manapun.")
-          .setTimestamp(),
+        new EmbedBuilder().setColor(0xff6d00).setTitle("ℹ️ HWID Belum Terikat")
+          .setDescription("Key ini belum terikat ke perangkat manapun.").setTimestamp(),
       ],
     });
     return;
@@ -304,8 +316,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
-          .setTitle("❌ Bukan Key Milikmu")
-          .setDescription("Kamu hanya bisa reset HWID key milik kamu sendiri.")
+          .setTitle("❌ Akses Ditolak")
+          .setDescription("Anda hanya dapat mereset HWID untuk key yang terdaftar atas nama Anda.")
           .setTimestamp(),
       ],
     });
@@ -318,7 +330,10 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
         new EmbedBuilder()
           .setColor(0xd50000)
           .setTitle("❌ Batas Reset Tercapai")
-          .setDescription(`Batas maksimal **${license.max_hwid_resets}x** reset sudah tercapai.\nHubungi admin.`)
+          .setDescription(
+            `Key ini telah mencapai batas maksimal reset HWID (**${license.max_hwid_resets}x**).\n` +
+            "Hubungi Administrator untuk bantuan lebih lanjut."
+          )
           .setTimestamp(),
       ],
     });
@@ -340,7 +355,8 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
               .setColor(0xff6d00)
               .setTitle("⏳ Cooldown Aktif")
               .setDescription(
-                `Kamu bisa reset HWID lagi pada <t:${Math.floor(nextResetTime / 1000)}:F> (<t:${Math.floor(nextResetTime / 1000)}:R>).\n\n**Periode:** ${PERIOD_LABEL[period] ?? period}`
+                `Anda dapat melakukan reset HWID kembali pada <t:${Math.floor(nextResetTime / 1000)}:F> (<t:${Math.floor(nextResetTime / 1000)}:R>).\n\n` +
+                `**Periode Reset:** ${PERIOD_LABEL[period] ?? period}`
               )
               .setTimestamp(),
           ],
@@ -357,21 +373,20 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
 
   const resetsDone = license.hwid_reset_count + 1;
   const maxLabel = license.max_hwid_resets === -1 ? "∞" : String(license.max_hwid_resets);
-  let nextResetText = "Kapan saja (tanpa cooldown)";
-  if (periodMs > 0) nextResetText = `<t:${Math.floor((now + periodMs) / 1000)}:R>`;
+  const nextResetText = periodMs > 0 ? `<t:${Math.floor((now + periodMs) / 1000)}:R>` : "Kapan saja";
 
   await interaction.editReply({
     embeds: [
       new EmbedBuilder()
         .setColor(0x00c853)
         .setTitle("✅ HWID Berhasil Direset")
-        .setDescription("Key kamu bisa diaktifkan di perangkat baru sekarang.")
+        .setDescription("Key Anda kini dapat diaktifkan pada perangkat baru.")
         .addFields(
           { name: "Key", value: `\`${key}\``, inline: false },
-          { name: "Total Reset", value: `${resetsDone}/${maxLabel}`, inline: true },
+          { name: "Total Reset", value: `${resetsDone} / ${maxLabel}`, inline: true },
           { name: "Reset Berikutnya", value: nextResetText, inline: true }
         )
-        .setFooter({ text: `License Manager • Periode: ${PERIOD_LABEL[period] ?? period}` })
+        .setFooter({ text: `XiFil Hub • Periode: ${PERIOD_LABEL[period] ?? period}` })
         .setTimestamp(),
     ],
   });
@@ -388,11 +403,8 @@ async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
   if (userKeys.length === 0) {
     await interaction.editReply({
       embeds: [
-        new EmbedBuilder()
-          .setColor(0xff6d00)
-          .setTitle("🔍 Tidak Ada Key")
-          .setDescription("Kamu belum memiliki key terdaftar.")
-          .setTimestamp(),
+        new EmbedBuilder().setColor(0xff6d00).setTitle("🔍 Belum Ada Key")
+          .setDescription("Anda belum memiliki key yang terdaftar.").setTimestamp(),
       ],
     });
     return;
@@ -402,14 +414,12 @@ async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
   for (const uk of userKeys.slice(0, 10)) {
     const license = await getByKey(uk.license_key);
     if (!license) continue;
-
-    const hwidText = license.hwid_hash
-      ? `🔒 \`${license.hwid_hash.substring(0, 20)}...\``
-      : "🔓 Belum terikat";
-
+    const hwidText = license.hwid_hash ? `🔒 \`${license.hwid_hash.substring(0, 20)}...\`` : "🔓 Belum terikat";
     fields.push({
       name: `${statusEmoji(license.status)} \`${uk.license_key}\``,
-      value: `**HWID:** ${hwidText}\n**Reset:** ${license.hwid_reset_count}/${license.max_hwid_resets === -1 ? "∞" : license.max_hwid_resets} • Periode: ${PERIOD_LABEL[license.hwid_reset_period] ?? license.hwid_reset_period}`,
+      value:
+        `**HWID:** ${hwidText}\n` +
+        `**Reset:** ${license.hwid_reset_count} / ${license.max_hwid_resets === -1 ? "∞" : license.max_hwid_resets} • ${PERIOD_LABEL[license.hwid_reset_period] ?? license.hwid_reset_period}`,
       inline: false,
     });
   }
@@ -418,9 +428,9 @@ async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
     embeds: [
       new EmbedBuilder()
         .setColor(0x2196f3)
-        .setTitle("🔍 Status HWID Key Kamu")
+        .setTitle("🔍 Status HWID Key Anda")
         .addFields(fields)
-        .setFooter({ text: "License Manager • HWID dipotong untuk keamanan" })
+        .setFooter({ text: "XiFil Hub • HWID dipotong untuk keamanan" })
         .setTimestamp(),
     ],
   });
@@ -431,14 +441,38 @@ async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
 async function handleRequestAksesVip(interaction: ButtonInteraction): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
+  // Already whitelisted
   const existing = await getWhitelistUser(interaction.user.id);
   if (existing) {
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(0xff6d00)
-          .setTitle("⚠️ Sudah Terdaftar di Whitelist")
-          .setDescription("Kamu sudah ada di whitelist VIP! Gunakan tombol **Get Key** atau **Get Role VIP**.")
+          .setTitle("ℹ️ Akun Sudah Terdaftar")
+          .setDescription(
+            "Akun Anda sudah terdaftar sebagai member VIP.\n" +
+            "Gunakan tombol **Get Key** atau **Get Role VIP** untuk melanjutkan."
+          )
+          .setTimestamp(),
+      ],
+    });
+    return;
+  }
+
+  // Already has pending ticket
+  const pending = await getPendingTicket(interaction.user.id);
+  if (pending) {
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xff9800)
+          .setTitle("⏳ Permohonan Sedang Diproses")
+          .setDescription(
+            "Permohonan akses VIP Anda saat ini **sedang dalam proses peninjauan** oleh tim Administrator XiFil Hub.\n\n" +
+            "Harap menunggu dengan sabar — Anda akan dihubungi melalui **Direct Message** setelah keputusan diberikan.\n\n" +
+            "Jika membutuhkan bantuan segera, silakan menghubungi Administrator secara langsung di channel yang tersedia."
+          )
+          .setFooter({ text: "XiFil Hub • Mohon tidak mengirim ulang permohonan" })
           .setTimestamp(),
       ],
     });
@@ -447,178 +481,347 @@ async function handleRequestAksesVip(interaction: ButtonInteraction): Promise<vo
 
   const guild = interaction.guild;
   if (!guild) {
-    await interaction.editReply({ content: "Hanya bisa digunakan di server." });
+    await interaction.editReply({ content: "Perintah ini hanya dapat digunakan di dalam server." });
     return;
   }
 
-  const ticketChannel = guild.channels.cache.find(
-    (ch) => ch.isTextBased() && (ch.name.toLowerCase().includes("open-ticket") || ch.name.toLowerCase().includes("ticket"))
+  // Find #req-ticket channel (admin-only)
+  const reqChannel = guild.channels.cache.find(
+    (ch) => ch.isTextBased() && ch.name.toLowerCase().includes("req-ticket")
   ) as TextChannel | undefined;
 
-  if (!ticketChannel) {
+  if (!reqChannel) {
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
-          .setTitle("❌ Channel Ticket Tidak Ditemukan")
-          .setDescription("Hubungi admin secara langsung untuk request akses VIP.")
+          .setTitle("❌ Sistem Permohonan Tidak Tersedia")
+          .setDescription(
+            "Sistem permohonan akses sedang tidak tersedia.\n" +
+            "Silakan menghubungi Administrator secara langsung untuk mengajukan permohonan VIP."
+          )
           .setTimestamp(),
       ],
     });
     return;
   }
 
-  const thread = await ticketChannel.threads.create({
-    name: `request-vip-${interaction.user.username}`,
-    autoArchiveDuration: 1440,
-    reason: `VIP Access Request by ${interaction.user.tag}`,
-  });
-
   const ticketEmbed = new EmbedBuilder()
     .setColor(0xff9800)
-    .setTitle("🎟️ Request Akses VIP")
-    .setDescription(`User <@${interaction.user.id}> meminta akses VIP.\n\nAdmin, silakan **Approve** atau **Reject** request ini.`)
-    .addFields(
-      { name: "User", value: `<@${interaction.user.id}>`, inline: true },
-      { name: "Username", value: interaction.user.username, inline: true },
-      { name: "ID", value: interaction.user.id, inline: true }
+    .setTitle("🎟️ Permohonan Akses VIP Baru")
+    .setDescription(
+      `Pengguna <@${interaction.user.id}> mengajukan permohonan akses VIP.\n\n` +
+      "Silakan tinjau permohonan ini dan pilih tindakan yang sesuai."
     )
+    .addFields(
+      { name: "👤 Pengguna", value: `<@${interaction.user.id}>`, inline: true },
+      { name: "🏷️ Username", value: `\`${interaction.user.username}\``, inline: true },
+      { name: "🆔 User ID", value: `\`${interaction.user.id}\``, inline: true },
+      { name: "📅 Waktu", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: false }
+    )
+    .setFooter({ text: "XiFil Hub • Admin Only — req-ticket" })
     .setTimestamp();
 
   const ticketRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`approve_ticket_${interaction.user.id}`)
-      .setLabel("✅ Approve")
+      .setLabel("Setujui Permohonan")
+      .setEmoji("✅")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`reject_ticket_${interaction.user.id}`)
-      .setLabel("❌ Reject")
+      .setLabel("Tolak Permohonan")
+      .setEmoji("❌")
       .setStyle(ButtonStyle.Danger)
   );
 
-  await thread.send({ embeds: [ticketEmbed], components: [ticketRow] });
+  const ticketMsg = await reqChannel.send({ embeds: [ticketEmbed], components: [ticketRow] });
+
+  await addPendingTicket({
+    discordUserId: interaction.user.id,
+    channelId: reqChannel.id,
+    messageId: ticketMsg.id,
+    createdAt: Date.now(),
+  });
+
   await logTicketRequest(interaction.user.id, interaction.user.username);
 
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0x00c853)
-        .setTitle("🎟️ Request Terkirim!")
-        .setDescription(
-          "Request akses VIP kamu sudah dikirim ke admin.\nTunggu persetujuan, kamu akan mendapat notifikasi via DM."
-        )
-        .setTimestamp(),
-    ],
-  });
-}
-
-// ─── Ticket Approve ───────────────────────────────────────────────────────
-
-async function handleApproveTicket(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: false });
-
-  const member = interaction.member as GuildMember;
-  const hasAdmin = member.permissions.has("Administrator");
-  if (!hasAdmin) {
-    await interaction.editReply({ content: "❌ Hanya admin yang bisa approve ticket." });
-    return;
-  }
-
-  const targetUserId = interaction.customId.replace("approve_ticket_", "");
-  const now = Date.now();
-
-  const key = generateLicenseKey();
-  await insertLicenses([
-    {
-      id: randomUUID(),
-      licenseKey: key,
-      durationType: "PERMANENT",
-      durationValue: 0,
-      issuerDiscordId: interaction.user.id,
-      createdAt: now,
-    },
-  ]);
-
-  await addToWhitelist({
-    id: randomUUID(),
-    discordUserId: targetUserId,
-    discordUsername: targetUserId,
-    keyCount: 1,
-    addedBy: interaction.user.id,
-    addedAt: now,
-  });
-
-  await assignKeyToUser({
-    id: randomUUID(),
-    discordUserId: targetUserId,
-    licenseKey: key,
-    assignedAt: now,
-  });
-
-  await logTicketApproved(targetUserId, interaction.user.id);
-  await logWhitelistAdd(targetUserId, 1, interaction.user.id);
-
+  // DM user confirmation
   try {
-    const guild = interaction.guild!;
-    const vipRoleName = process.env["VIP_ROLE_NAME"] ?? "VIP";
-    const vipRole = guild.roles.cache.find((r) => r.name === vipRoleName);
-    const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
-    if (targetMember && vipRole) {
-      await targetMember.roles.add(vipRole, "Ticket approved");
-    }
-  } catch { /* role assignment is best-effort */ }
-
-  try {
-    const client = interaction.client;
-    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
-    if (targetUser) {
-      await targetUser.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x00c853)
-            .setTitle("✅ Request VIP Disetujui!")
-            .setDescription(
-              `Selamat! Request akses VIP kamu telah **disetujui** oleh admin.\n\nKamu sekarang sudah terdaftar di whitelist VIP.`
-            )
-            .addFields({ name: "License Key Kamu", value: `\`${key}\``, inline: false })
-            .setFooter({ text: "XiFil Hub • Jaga kerahasiaan key kamu!" })
-            .setTimestamp(),
-        ],
-      });
-    }
+    await interaction.user.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x5865f2)
+          .setTitle("🎟️ Permohonan Akses VIP Diterima")
+          .setDescription(
+            `Halo **${interaction.user.username}**!\n\n` +
+            "Permohonan akses VIP Anda di **XiFil Hub** telah berhasil diterima oleh sistem kami.\n\n" +
+            "Tim Administrator kami akan segera meninjau permohonan Anda. " +
+            "Anda akan mendapatkan notifikasi melalui pesan ini setelah keputusan diberikan.\n\n" +
+            "Mohon untuk tidak mengirim ulang permohonan selama proses peninjauan berlangsung."
+          )
+          .setFooter({ text: "XiFil Hub • License Manager" })
+          .setTimestamp(),
+      ],
+    });
   } catch { /* DM might be blocked */ }
 
   await interaction.editReply({
     embeds: [
       new EmbedBuilder()
         .setColor(0x00c853)
-        .setTitle("✅ Ticket Disetujui")
-        .setDescription(`<@${targetUserId}> telah di-whitelist dan mendapat 1 key PERMANENT.\nDM sudah dikirim ke user.`)
+        .setTitle("✅ Permohonan Berhasil Dikirim")
+        .setDescription(
+          "Permohonan akses VIP Anda telah berhasil diteruskan kepada tim Administrator XiFil Hub.\n\n" +
+          "Anda akan mendapatkan notifikasi melalui **Direct Message** setelah proses peninjauan selesai.\n" +
+          "Mohon untuk bersabar dan tidak mengirim ulang permohonan."
+        )
+        .setFooter({ text: "XiFil Hub • Terima kasih telah bergabung" })
         .setTimestamp(),
     ],
   });
-
-  if (interaction.channel instanceof ThreadChannel) {
-    await (interaction.channel as ThreadChannel).setArchived(true).catch(() => null);
-  }
 }
 
-// ─── Ticket Reject ────────────────────────────────────────────────────────
+// ─── Approve Ticket → Show Modal ──────────────────────────────────────────
+
+async function handleApproveTicketButton(interaction: ButtonInteraction): Promise<void> {
+  const member = interaction.member as GuildMember;
+  if (!member.permissions.has("Administrator")) {
+    await interaction.reply({ content: "❌ Hanya Administrator yang dapat melakukan tindakan ini.", ephemeral: true });
+    return;
+  }
+
+  const targetUserId = interaction.customId.replace("approve_ticket_", "");
+
+  const modal = new ModalBuilder()
+    .setCustomId(`approve_ticket_modal_${targetUserId}`)
+    .setTitle("✅ Setujui Permohonan VIP");
+
+  const giveKeyInput = new TextInputBuilder()
+    .setCustomId("give_key")
+    .setLabel("Berikan Key? (ya / tidak) — Default: tidak")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder("ya / tidak")
+    .setValue("tidak")
+    .setMaxLength(5);
+
+  const keyTypeInput = new TextInputBuilder()
+    .setCustomId("key_type")
+    .setLabel("Tipe Key (abaikan jika tidak beri key)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder("PERMANENT / DAILY / WEEKLY / HOURLY")
+    .setValue("PERMANENT")
+    .setMaxLength(10);
+
+  const durationInput = new TextInputBuilder()
+    .setCustomId("key_duration")
+    .setLabel("Durasi (angka, abaikan jika PERMANENT)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder("Contoh: 7")
+    .setValue("1")
+    .setMaxLength(4);
+
+  const countInput = new TextInputBuilder()
+    .setCustomId("key_count")
+    .setLabel("Jumlah Key (abaikan jika tidak beri key)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setPlaceholder("Contoh: 1")
+    .setValue("1")
+    .setMaxLength(2);
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(giveKeyInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(keyTypeInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(countInput)
+  );
+
+  await interaction.showModal(modal);
+}
+
+// ─── Approve Ticket Modal Submit ──────────────────────────────────────────
+
+export async function handleApproveTicketModal(interaction: ModalSubmitInteraction): Promise<void> {
+  await interaction.deferReply({ ephemeral: true });
+
+  const targetUserId = interaction.customId.replace("approve_ticket_modal_", "");
+
+  const giveKeyRaw = interaction.fields.getTextInputValue("give_key").trim().toLowerCase();
+  const giveKey = giveKeyRaw === "ya" || giveKeyRaw === "y" || giveKeyRaw === "yes";
+
+  const keyTypeRaw = (interaction.fields.getTextInputValue("key_type").trim().toUpperCase()) || "PERMANENT";
+  const keyType = ["PERMANENT", "DAILY", "WEEKLY", "HOURLY"].includes(keyTypeRaw) ? keyTypeRaw : "PERMANENT";
+  const durationRaw = parseInt(interaction.fields.getTextInputValue("key_duration").trim()) || 1;
+  const keyCount = Math.min(Math.max(parseInt(interaction.fields.getTextInputValue("key_count").trim()) || 1, 1), 10);
+
+  const now = Date.now();
+
+  // Whitelist user
+  const existing = await getWhitelistUser(targetUserId);
+  await addToWhitelist({
+    id: existing?.id ?? randomUUID(),
+    discordUserId: targetUserId,
+    discordUsername: targetUserId,
+    keyCount: giveKey ? keyCount : 0,
+    addedBy: interaction.user.id,
+    addedAt: now,
+  });
+
+  const generatedKeys: string[] = [];
+
+  if (giveKey) {
+    const duration = keyType === "PERMANENT" ? 0 : durationRaw;
+    const licenseEntries = [];
+    for (let i = 0; i < keyCount; i++) {
+      let key = generateLicenseKey();
+      let attempts = 0;
+      while (await getByKey(key)) {
+        key = generateLicenseKey();
+        if (++attempts > 20) throw new Error("Key collision");
+      }
+      generatedKeys.push(key);
+      licenseEntries.push({
+        id: randomUUID(),
+        licenseKey: key,
+        durationType: keyType,
+        durationValue: duration,
+        issuerDiscordId: interaction.user.id,
+        createdAt: now,
+        maxHwidResets: 1,
+        hwidResetPeriod: "WEEKLY",
+      });
+    }
+    await insertLicenses(licenseEntries);
+    for (const key of generatedKeys) {
+      await assignKeyToUser({ id: randomUUID(), discordUserId: targetUserId, licenseKey: key, assignedAt: now });
+    }
+  }
+
+  // Try to assign VIP role
+  try {
+    const guild = interaction.guild!;
+    const vipRoleName = process.env["VIP_ROLE_NAME"] ?? "VIP";
+    const vipRole = guild.roles.cache.find((r) => r.name === vipRoleName);
+    const targetMember = await guild.members.fetch(targetUserId).catch(() => null);
+    if (targetMember && vipRole) {
+      await targetMember.roles.add(vipRole, "Ticket approved by admin");
+    }
+  } catch { /* best-effort */ }
+
+  // Remove pending ticket
+  await removePendingTicket(targetUserId);
+  await logTicketApproved(targetUserId, interaction.user.id);
+  await logWhitelistAdd(targetUserId, giveKey ? keyCount : 0, interaction.user.id);
+
+  // DM user
+  try {
+    const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
+    if (targetUser) {
+      if (giveKey && generatedKeys.length > 0) {
+        const keyBlock = generatedKeys.map((k) => `\`${k}\``).join("\n");
+        await targetUser.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x00c853)
+              .setTitle("✅ Permohonan VIP Disetujui")
+              .setDescription(
+                `Selamat **${targetUser.username}**! 🎉\n\n` +
+                "Permohonan akses VIP Anda di **XiFil Hub** telah resmi disetujui oleh Administrator.\n\n" +
+                "Berikut adalah license key yang telah disiapkan untuk Anda:"
+              )
+              .addFields(
+                { name: "🔑 License Key", value: keyBlock, inline: false },
+                { name: "📋 Tipe", value: durationLabel(keyType, durationRaw), inline: true },
+                { name: "⚠️ Penting", value: "Jaga kerahasiaan key Anda. Jangan bagikan kepada siapapun.", inline: false }
+              )
+              .setFooter({ text: "XiFil Hub • License Manager" })
+              .setTimestamp(),
+          ],
+        });
+      } else {
+        await targetUser.send({
+          embeds: [
+            new EmbedBuilder()
+              .setColor(0x00c853)
+              .setTitle("✅ Permohonan VIP Disetujui")
+              .setDescription(
+                `Selamat **${targetUser.username}**! 🎉\n\n` +
+                "Permohonan akses VIP Anda di **XiFil Hub** telah resmi disetujui oleh Administrator.\n\n" +
+                "Silakan kunjungi channel **#panel-vip** dan klik tombol **Get Key** untuk mengambil license key Anda, " +
+                "atau klik **Get Role VIP** untuk mendapatkan role VIP Anda."
+              )
+              .setFooter({ text: "XiFil Hub • License Manager" })
+              .setTimestamp(),
+          ],
+        });
+      }
+    }
+  } catch { /* DM might be blocked */ }
+
+  // Edit the original ticket message to mark as approved (remove buttons)
+  try {
+    const pending = await getPendingTicket(targetUserId).catch(() => null);
+    if (pending) {
+      const ch = interaction.guild?.channels.cache.get(pending.channel_id) as TextChannel | undefined;
+      if (ch) {
+        const msg = await ch.messages.fetch(pending.message_id).catch(() => null);
+        if (msg) {
+          await msg.edit({
+            embeds: [
+              ...msg.embeds,
+              new EmbedBuilder()
+                .setColor(0x00c853)
+                .setDescription(`✅ **Disetujui** oleh <@${interaction.user.id}> • <t:${Math.floor(Date.now() / 1000)}:R>`)
+                .toJSON() as Parameters<typeof msg.edit>[0]["embeds"] extends Array<infer T> ? T : never,
+            ],
+            components: [],
+          });
+        }
+      }
+    }
+  } catch { /* best-effort */ }
+
+  const keyInfo = giveKey
+    ? `**${keyCount} key** (${durationLabel(keyType, durationRaw)}) diberikan`
+    : "Tidak ada key diberikan — user diarahkan ke Get Key di panel";
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x00c853)
+        .setTitle("✅ Permohonan Berhasil Disetujui")
+        .setDescription(`Permohonan dari <@${targetUserId}> telah disetujui.`)
+        .addFields(
+          { name: "Key", value: keyInfo, inline: false },
+          { name: "Notifikasi DM", value: "Terkirim ke user", inline: true },
+          { name: "Oleh Admin", value: `<@${interaction.user.id}>`, inline: true }
+        )
+        .setTimestamp(),
+    ],
+  });
+}
+
+// ─── Reject Ticket ────────────────────────────────────────────────────────
 
 async function handleRejectTicket(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: false });
+  await interaction.deferReply({ ephemeral: true });
 
   const member = interaction.member as GuildMember;
-  const hasAdmin = member.permissions.has("Administrator");
-  if (!hasAdmin) {
-    await interaction.editReply({ content: "❌ Hanya admin yang bisa reject ticket." });
+  if (!member.permissions.has("Administrator")) {
+    await interaction.editReply({ content: "❌ Hanya Administrator yang dapat melakukan tindakan ini." });
     return;
   }
 
   const targetUserId = interaction.customId.replace("reject_ticket_", "");
 
+  await removePendingTicket(targetUserId);
   await logTicketRejected(targetUserId, interaction.user.id);
 
+  // DM user
   try {
     const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => null);
     if (targetUser) {
@@ -626,27 +829,56 @@ async function handleRejectTicket(interaction: ButtonInteraction): Promise<void>
         embeds: [
           new EmbedBuilder()
             .setColor(0xd50000)
-            .setTitle("❌ Request VIP Ditolak")
-            .setDescription("Maaf, request akses VIP kamu ditolak oleh admin.\nHubungi admin untuk informasi lebih lanjut.")
+            .setTitle("❌ Permohonan VIP Tidak Dapat Disetujui")
+            .setDescription(
+              `Halo **${targetUser.username}**,\n\n` +
+              "Mohon maaf, permohonan akses VIP Anda di **XiFil Hub** tidak dapat kami setujui saat ini.\n\n" +
+              "Jika Anda memiliki pertanyaan lebih lanjut atau ingin mengajukan permohonan kembali, " +
+              "silakan menghubungi Administrator XiFil Hub secara langsung."
+            )
+            .setFooter({ text: "XiFil Hub • License Manager" })
             .setTimestamp(),
         ],
       });
     }
   } catch { /* DM might be blocked */ }
 
+  // Edit original ticket message (remove buttons)
+  try {
+    const ch = interaction.channel;
+    if (ch && ch.isTextBased()) {
+      const messages = await (ch as TextChannel).messages.fetch({ limit: 50 });
+      const ticketMsg = messages.find(
+        (m) => m.author.bot && m.components.length > 0 &&
+          m.components[0]?.components.some(
+            (c) => c.type === 2 && "customId" in c && (c as { customId: string }).customId === `reject_ticket_${targetUserId}`
+          )
+      );
+      if (ticketMsg) {
+        await ticketMsg.edit({
+          embeds: [
+            ...ticketMsg.embeds,
+            new EmbedBuilder()
+              .setColor(0xd50000)
+              .setDescription(`❌ **Ditolak** oleh <@${interaction.user.id}> • <t:${Math.floor(Date.now() / 1000)}:R>`)
+              .toJSON() as Parameters<typeof ticketMsg.edit>[0]["embeds"] extends Array<infer T> ? T : never,
+          ],
+          components: [],
+        });
+      }
+    }
+  } catch { /* best-effort */ }
+
   await interaction.editReply({
     embeds: [
       new EmbedBuilder()
         .setColor(0xd50000)
-        .setTitle("❌ Ticket Ditolak")
-        .setDescription(`Request dari <@${targetUserId}> telah ditolak.`)
+        .setTitle("❌ Permohonan Ditolak")
+        .setDescription(`Permohonan dari <@${targetUserId}> telah ditolak. Notifikasi DM telah dikirimkan kepada user.`)
+        .addFields({ name: "Oleh Admin", value: `<@${interaction.user.id}>`, inline: true })
         .setTimestamp(),
     ],
   });
-
-  if (interaction.channel instanceof ThreadChannel) {
-    await (interaction.channel as ThreadChannel).setArchived(true).catch(() => null);
-  }
 }
 
 // ─── Get Script ───────────────────────────────────────────────────────────
@@ -658,14 +890,14 @@ async function handleGetScript(interaction: ButtonInteraction): Promise<void> {
     embeds: [
       new EmbedBuilder()
         .setColor(0x5865f2)
-        .setTitle("📜 Script Roblox")
-        .setDescription("Salin script di bawah ini dan jalankan di executor Roblox kamu:")
+        .setTitle("📜 Script Roblox — XiFil Hub")
+        .setDescription("Salin script berikut dan jalankan melalui executor Roblox Anda:")
         .addFields({
-          name: "Script",
+          name: "Executor Script",
           value: `\`\`\`lua\n${LUA_SCRIPT}\n\`\`\``,
           inline: false,
         })
-        .setFooter({ text: "XiFil Hub • Jangan bagikan script ini!" })
+        .setFooter({ text: "XiFil Hub • Jangan bagikan script ini kepada siapapun." })
         .setTimestamp(),
     ],
   });

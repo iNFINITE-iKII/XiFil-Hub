@@ -22,7 +22,11 @@ import * as transferkey from "../commands/transferkey.js";
 import * as setlabel from "../commands/setlabel.js";
 import * as cleanup from "../commands/cleanup.js";
 import * as help from "../commands/help.js";
-import { handleButton, handleResetHwidModal } from "../handlers/buttonHandler.js";
+import {
+  handleButton,
+  handleResetHwidModal,
+  handleApproveTicketModal,
+} from "../handlers/buttonHandler.js";
 
 const commandMap = new Map([
   ["genkey", genkey],
@@ -52,9 +56,8 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
     } catch (err) {
       logger.error({ err, button: interaction.customId }, "Button handler error");
       const embed = new EmbedBuilder()
-        .setColor(0xd50000)
-        .setTitle("❌ Internal Error")
-        .setDescription("Terjadi error saat memproses tombol ini.")
+        .setColor(0xd50000).setTitle("❌ Terjadi Kesalahan")
+        .setDescription("Terjadi kesalahan sistem. Silakan coba lagi atau hubungi Administrator.")
         .setTimestamp();
       const btn = interaction as ButtonInteraction;
       if (btn.deferred || btn.replied) {
@@ -73,13 +76,14 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
     try {
       if (modal.customId === "reset_hwid_modal") {
         await handleResetHwidModal(modal);
+      } else if (modal.customId.startsWith("approve_ticket_modal_")) {
+        await handleApproveTicketModal(modal);
       }
     } catch (err) {
       logger.error({ err, modal: modal.customId }, "Modal handler error");
       const embed = new EmbedBuilder()
-        .setColor(0xd50000)
-        .setTitle("❌ Internal Error")
-        .setDescription("Terjadi error saat memproses form ini.")
+        .setColor(0xd50000).setTitle("❌ Terjadi Kesalahan")
+        .setDescription("Terjadi kesalahan sistem saat memproses formulir. Silakan coba lagi.")
         .setTimestamp();
       if (modal.deferred || modal.replied) {
         await modal.editReply({ embeds: [embed] }).catch(() => null);
@@ -103,9 +107,8 @@ export async function onInteractionCreate(interaction: Interaction): Promise<voi
   } catch (err) {
     logger.error({ err, command: interaction.commandName }, "Command error");
     const embed = new EmbedBuilder()
-      .setColor(0xd50000)
-      .setTitle("❌ Internal Error")
-      .setDescription("Terjadi error saat menjalankan perintah ini.")
+      .setColor(0xd50000).setTitle("❌ Terjadi Kesalahan")
+      .setDescription("Terjadi kesalahan sistem saat menjalankan perintah ini.")
       .setTimestamp();
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply({ embeds: [embed] }).catch(() => null);
