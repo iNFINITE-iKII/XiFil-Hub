@@ -220,9 +220,9 @@ async function handleGetKey(interaction: ButtonInteraction): Promise<void> {
     }
 
     fields.push({
-      name: `${statusEmoji(license.status)} \`${uk.license_key}\``,
+      name: `${statusEmoji(license.status)} ${license.status} • ${durationLabel(license.duration_type, license.duration_value)}`,
       value:
-        `**Status:** ${license.status} • **Tipe:** ${durationLabel(license.duration_type, license.duration_value)}\n` +
+        `**Key:** ${uk.license_key}\n` +
         `**Berlaku hingga:** ${expiryText}` +
         (license.label ? `\n📝 *${license.label}*` : ""),
       inline: false,
@@ -896,7 +896,7 @@ async function handleGetScript(interaction: ButtonInteraction): Promise<void> {
         .setDescription("Salin script berikut dan jalankan melalui executor Roblox Anda:")
         .addFields({
           name: "Executor Script",
-          value: `\`\`\`lua\n${LUA_SCRIPT}\n\`\`\``,
+          value: LUA_SCRIPT,
           inline: false,
         })
         .setFooter({ text: "XiFil Hub • Jangan bagikan script ini kepada siapapun." })
