@@ -104,16 +104,14 @@ local MODE_NAMES = {
 local function getModeLabel(n) return n.." - "..(MODE_NAMES[n] or tostring(n)) end
 
 local EngineConfig = {
-    -- == FARM TOGGLE ==
-    AutoFarmMonster   = false,
-    AutoSearchMonster = false,  -- pencarian/navigasi monster (terpisah dari attack)
+    -- == FARM TOGGLE (1 on/off + target selection) ==
+    AutoFarmActive    = false,   -- master on/off
+    FarmTargetMonster = true,    -- ikut Auto Farm: serang monster
+    FarmTargetChest   = false,   -- ikut Auto Farm: ambil chest
+    FarmTargetEgg     = false,   -- ikut Auto Farm: ambil egg
     AutoAttackOnly    = false,
-    AutoEggActive     = false,
     AutoReplayActive  = false,
     SelectedWorld     = "Starless Forest",
-
-    -- == TOGGLE CHEST & EGG ==
-    AutoChestActive   = false,  -- fokus chest, abaikan enemy
 
     -- == METODE & POSISI ==
     FarmMethod   = "CFrame",
@@ -424,8 +422,8 @@ local function FireReplayRemote()
 end
 
 local function DisableAutoFarm(reason)
-    if not EngineConfig.AutoFarmMonster then return end
-    EngineConfig.AutoFarmMonster=false
+    if not EngineConfig.AutoFarmActive then return end
+    EngineConfig.AutoFarmActive=false
     if ToggleControl and ToggleControl.SetValue then ToggleControl:SetValue(false)
     elseif _G.FarmMonsterToggle and _G.FarmMonsterToggle.SetValue then _G.FarmMonsterToggle:SetValue(false) end
     CustomNotify("🚨 FARM OFF",reason,4)
@@ -535,13 +533,12 @@ function Navigation.GetClosestObject(folderName, objectName, myPosition)
     return closest
 end
 
--- Cek: apakah ada target aktif sekarang? (chest/egg/monster berdasarkan toggle yang ON)
+-- Cek: apakah ada target aktif sekarang? (berdasarkan target yang dipilih)
 local function anyActiveTargetExists()
-    if (EngineConfig.AutoChestActive or EngineConfig.AutoFarmMonster) and #CombatEngine.GetValidChests()>0 then return true end
-    if EngineConfig.AutoEggActive and Workspace:FindFirstChild("DragonEgg") then return true end
-    if EngineConfig.AutoFarmMonster and #CombatEngine.GetValidMonsters()>0 then return true end
-    -- Pencarian berhenti jika ada chest/egg/monster apapun (agar tidak jalan sia-sia)
-    if EngineConfig.AutoSearchMonster and (#CombatEngine.GetValidChests()>0 or Workspace:FindFirstChild("DragonEgg") or #CombatEngine.GetValidMonsters()>0) then return true end
+    if not EngineConfig.AutoFarmActive then return false end
+    if EngineConfig.FarmTargetChest and #CombatEngine.GetValidChests()>0 then return true end
+    if EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then return true end
+    if EngineConfig.FarmTargetMonster and #CombatEngine.GetValidMonsters()>0 then return true end
     return false
 end
 
@@ -560,7 +557,7 @@ function Navigation.SearchWorld1(myHRP, myHum)
 
         local interrupted = CombatEngine.InterruptableStall(0.5, function()
             -- Interrupsi ditambahkan pengecekan SelectedWorld
-            return not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1
+            return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1
         end)
         if interrupted or anyActiveTargetExists() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
             myHum.PlatformStand = false; return
@@ -572,13 +569,13 @@ function Navigation.SearchWorld1(myHRP, myHum)
     local orbitTiers = {50, 150, 250}
 
     for tierIndex, currentRadius in ipairs(orbitTiers) do
-        if anyActiveTargetExists() or not EngineConfig.AutoSearchMonster or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
+        if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
         print("[SYSTEM W1] Executing Orbit Tier " .. tierIndex .. " with Radius: " .. currentRadius)
 
         local lastOrbitCFrame = nil
         for i = 1, steps do
             -- Interrupsi instan di dalam loop pergerakan derajat orbit
-            if not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
 
             local angle = (i / steps) * (math.pi * 2)
             local targetPos = centerPosition + Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
@@ -591,7 +588,7 @@ function Navigation.SearchWorld1(myHRP, myHum)
 
         if lastOrbitCFrame then
             local orbitStalled = CombatEngine.InterruptableStall(2, function()
-                if not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+                if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
                 CombatEngine.ResetPhysics(myHRP)
                 myHRP.CFrame = lastOrbitCFrame
             end)
@@ -599,13 +596,13 @@ function Navigation.SearchWorld1(myHRP, myHum)
         end
     end
 
-    if anyActiveTargetExists() or not EngineConfig.AutoSearchMonster or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
         myHum.PlatformStand = false; return
     end
 
     local finalCFrame = myHRP.CFrame
     local isInterrupted = CombatEngine.InterruptableStall(5, function()
-        if not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+        if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
         CombatEngine.ResetPhysics(myHRP)
         myHRP.CFrame = finalCFrame
     end)
@@ -621,20 +618,20 @@ function Navigation.SearchWorld1(myHRP, myHum)
 
         local portalCFrame = myHRP.CFrame
         CombatEngine.InterruptableStall(3, function()
-            if not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
             CombatEngine.ResetPhysics(myHRP)
             myHRP.CFrame = portalCFrame
         end)
-        if anyActiveTargetExists() or not EngineConfig.AutoSearchMonster or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+        if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
             myHum.PlatformStand = false; return
         end
     end
 
     -- Idle stall 115 detik menunggu respawn
-    if EngineConfig.AutoSearchMonster and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 1 then
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 1 then
         local idleCFrame = myHRP.CFrame
         CombatEngine.InterruptableStall(115, function()
-            if not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
             CombatEngine.ResetPhysics(myHRP)
             myHRP.CFrame = idleCFrame
         end)
@@ -650,7 +647,7 @@ function Navigation.SearchWorld2(myHRP, myHum)
     myHum.PlatformStand = true
 
     local function globalBreakCondition()
-        return not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2
+        return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2
     end
 
     if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
@@ -677,12 +674,12 @@ function Navigation.SearchWorld2(myHRP, myHum)
     if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
 
     EngineConfig.IsLockDelay = false
-    if anyActiveTargetExists() or not EngineConfig.AutoSearchMonster or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2 then
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2 then
         myHum.PlatformStand = false; return
     end
 
     -- Idle stall 115 detik
-    if EngineConfig.AutoSearchMonster and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 2 then
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 2 then
         EngineConfig.IsLockDelay = true
         CombatEngine.InterruptableStall(115, function()
             if globalBreakCondition() then return true end
@@ -701,7 +698,7 @@ function Navigation.SearchWorld3(myHRP, myHum)
     myHum.PlatformStand = true
 
     local function globalBreakCondition()
-        return not EngineConfig.AutoSearchMonster or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3
+        return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3
     end
 
     if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
@@ -716,12 +713,12 @@ function Navigation.SearchWorld3(myHRP, myHum)
     if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
 
     EngineConfig.IsLockDelay = false
-    if anyActiveTargetExists() or not EngineConfig.AutoSearchMonster or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3 then
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3 then
         myHum.PlatformStand = false; return
     end
 
     -- Idle stall 115 detik
-    if EngineConfig.AutoSearchMonster and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 3 then
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 3 then
         EngineConfig.IsLockDelay = true
         CombatEngine.InterruptableStall(115, function()
             if globalBreakCondition() then return true end
@@ -760,19 +757,23 @@ local _farmLoopRunning=false
 
 -- Cek apakah loop masih harus berjalan
 local function anyFarmToggleActive()
-    return EngineConfig.AutoFarmMonster or EngineConfig.AutoChestActive or EngineConfig.AutoEggActive or EngineConfig.AutoSearchMonster
+    return EngineConfig.AutoFarmActive
 end
 
 --[[
-  PRIORITAS (per frame):
-  1. Chest  — jika AutoChestActive=true DAN ada chest
-              (AutoChestActive mengabaikan enemy sepenuhnya)
-  2. Egg    — jika AutoEggActive=true DAN DragonEgg ada di Workspace
-              (AutoEggActive mengabaikan enemy, kecuali chest sdh ditangani di atas)
-              Fase 1: CFrame tepat 3 stud di atas pusat telur → CFrame sekali ke telur (proximity)
-              Fase 2: CFrame ke posisi dropdown (FarmPosition) + semua nilai Vector
-  3. Enemy  — jika AutoFarmMonster=true DAN ada monster
-  4. Cari   — jika AutoSearchMonster=true DAN tidak ada monster/egg/chest → navigasi pencarian
+  SISTEM BARU — 1 Toggle (AutoFarmActive) + pilihan target (Monster/Chest/Egg)
+
+  PRIORITAS (per frame) saat ada target yang dipilih:
+    1. Chest   — jika FarmTargetChest=true DAN ada chest
+    2. Egg     — jika FarmTargetEgg=true DAN ada DragonEgg
+    3. Monster — jika FarmTargetMonster=true DAN ada monster
+    4. Find    — Auto Farm aktif tapi tidak ada satupun target ditemukan → navigasi cari
+
+  ATURAN:
+  · Chest & Egg HANYA aktif jika AutoFarmActive=true.
+  · Find otomatis berjalan saat tidak ada target, selalu.
+  · Jika hanya Monster dipilih → setelah tidak ada monster langsung Find.
+  · Jika Chest/Egg dipilih → Chest > Egg lebih dulu, Monster setelahnya, baru Find.
 ]]
 local function startFarmLoop()
     if _farmLoopRunning then return end
@@ -791,11 +792,11 @@ local function startFarmLoop()
         local worldIdx=WORLD_INDEX[EngineConfig.SelectedWorld] or 1
 
         -- == GUARD World 2 IsLockDelay ==
-        if EngineConfig.AutoSearchMonster and worldIdx==2 and EngineConfig.IsLockDelay and not anyActiveTargetExists() then
+        if worldIdx==2 and EngineConfig.IsLockDelay and not anyActiveTargetExists() then
             CombatEngine.ResetPhysics(myHRP); Services.RunService.Heartbeat:Wait()
 
         -- ──────────────── PRIORITAS 1: CHEST ────────────────
-        elseif EngineConfig.AutoChestActive and #CombatEngine.GetValidChests()>0 then
+        elseif EngineConfig.FarmTargetChest and #CombatEngine.GetValidChests()>0 then
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             myHum.PlatformStand=true
             local chestRoot=CombatEngine.GetValidChests()[1].Root
@@ -810,7 +811,7 @@ local function startFarmLoop()
             else Services.RunService.Heartbeat:Wait() end
 
         -- ──────────────── PRIORITAS 2: EGG ────────────────
-        elseif EngineConfig.AutoEggActive and Workspace:FindFirstChild("DragonEgg") then
+        elseif EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             local egg=Workspace:FindFirstChild("DragonEgg")
             local ok,eggCF=pcall(function() return egg:GetPivot() end)
@@ -818,30 +819,28 @@ local function startFarmLoop()
                 local eggPos=eggCF.Position
                 myHum.PlatformStand=true
 
-                -- ▶ FASE 1 — Step 1: CFrame tepat 3 stud di atas pusat telur
+                -- ▶ FASE 1: TP ke atas egg + fire proximity secara bersamaan (tidak sequential)
                 CombatEngine.ResetPhysics(myHRP)
                 myHRP.CFrame=CFrame.new(eggPos+Vector3.new(0,3,0),eggPos)
-                task.wait(0.05)
-
-                -- ▶ FASE 1 — Step 2: CFrame sekali langsung ke telur untuk trigger proximity
-                CombatEngine.ResetPhysics(myHRP)
-                myHRP.CFrame=CFrame.new(eggPos,eggPos+Vector3.new(0,1,0))
-                task.wait(0.05)
-                pcall(function()
-                    for _,obj in ipairs(egg:GetDescendants()) do
-                        if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
-                    end
+                -- jalankan proximity di task terpisah agar tidak blocking movement
+                task.spawn(function()
+                    pcall(function()
+                        for _,obj in ipairs(egg:GetDescendants()) do
+                            if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
+                        end
+                    end)
                 end)
+                task.wait(0.05)
 
-                -- ▶ FASE 2: mengikuti dropdown posisi (FarmPosition) + semua nilai Vector
+                -- ▶ FASE 2: orbit/gerak ke posisi FarmPosition (sama seperti chest & monster)
                 local dropCF=GetPositionCFrame(eggPos,EngineConfig.FarmPosition)
                 ApplyMovement(myHRP,dropCF)
 
                 task.wait(EngineConfig.CFrameDelay)
             else Services.RunService.Heartbeat:Wait() end
 
-        -- ──────────────── PRIORITAS 3: ENEMY ────────────────
-        elseif EngineConfig.AutoFarmMonster and #CombatEngine.GetValidMonsters()>0 then
+        -- ──────────────── PRIORITAS 3: MONSTER ────────────────
+        elseif EngineConfig.FarmTargetMonster and #CombatEngine.GetValidMonsters()>0 then
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             myHum.PlatformStand=true
             local monsters=CombatEngine.GetValidMonsters()
@@ -849,7 +848,6 @@ local function startFarmLoop()
             local tPart=target and (target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart)
             local tHum=target and target:FindFirstChildOfClass("Humanoid")
             if tPart and (not tHum or tHum.Health>0) then
-                -- BossHeight jika target boss
                 local isBoss=CombatEngine.GetLevelType(target)=="boss"
                 local savedH=EngineConfig.StandHeight
                 if isBoss then EngineConfig.StandHeight=EngineConfig.BossHeight end
@@ -862,14 +860,14 @@ local function startFarmLoop()
                 task.wait(EngineConfig.CFrameDelay)
             else Services.RunService.Heartbeat:Wait() end
 
-        -- ──────────────── TIDAK ADA TARGET ────────────────
+        -- ──────────────── TIDAK ADA TARGET → AUTO FIND ────────────────
         else
             myHum.PlatformStand=false
             CombatEngine.ResetPhysics(myHRP)
             noTargetTimer=noTargetTimer+0.1
             task.wait(0.1)
-            -- Pencarian monster hanya jika AutoSearchMonster aktif (toggle terpisah)
-            if EngineConfig.AutoSearchMonster and noTargetTimer>=3 then
+            -- Find selalu berjalan saat Auto Farm ON dan tidak ada target
+            if noTargetTimer>=3 then
                 noTargetTimer=0
                 if worldIdx==1 then Navigation.SearchWorld1(myHRP,myHum)
                 elseif worldIdx==2 then Navigation.SearchWorld2(myHRP,myHum)
@@ -879,7 +877,7 @@ local function startFarmLoop()
         end
     end
 
-    -- Cleanup saat semua toggle OFF
+    -- Cleanup saat Auto Farm dimatikan
     pcall(function()
         local char=LocalPlayer.Character
         local myHum=char and char:FindFirstChildOfClass("Humanoid")
@@ -1178,45 +1176,35 @@ local MainFarmPage=CreateTab("🏠 Farm",1)
 
 CreateSection(MainFarmPage,"Farm Engine Control")
 
--- Toggle: Auto Farm Monster (Prioritas 3: serang enemy yang ada)
-_G.FarmMonsterToggle=CreateToggleUI(MainFarmPage,"🗡️ Auto Farm Monster ",EngineConfig.AutoFarmMonster,function(v)
-    EngineConfig.AutoFarmMonster=v
+-- ► MASTER TOGGLE: 1 tombol on/off untuk semua farm
+_G.AutoFarmToggle=CreateToggleUI(MainFarmPage,"🌾 Auto Farm",EngineConfig.AutoFarmActive,function(v)
+    EngineConfig.AutoFarmActive=v
     if v then
         if checkVictoryUi() then task.spawn(function() DisableAutoFarm("Victory aktif.") end)
         else task.spawn(startFarmLoop) end
     end
 end)
-ToggleControl=_G.FarmMonsterToggle
+ToggleControl=_G.AutoFarmToggle
 
--- Toggle: Auto Search Monster (navigasi cari monster — aktif jika tidak ada monster/egg/chest)
-_G.AutoSearchToggle=CreateToggleUI(MainFarmPage,"🔍 Auto Find Monster (World) ",EngineConfig.AutoSearchMonster,function(v)
-    EngineConfig.AutoSearchMonster=v
-    if v then
-        CustomNotify("🔍 AUTO SEARCH","Aktif! Navigasi jika tidak ada target.",2)
-        task.spawn(startFarmLoop)
-    end
+CreateSection(MainFarmPage,"Target Selection  (aktif saat Auto Farm ON)")
+
+-- ► 3 sub-toggle pilih target: bisa kombinasi bebas
+_G.TargetMonsterToggle=CreateToggleUI(MainFarmPage,"🗡️ Monster",EngineConfig.FarmTargetMonster,function(v)
+    EngineConfig.FarmTargetMonster=v
 end)
 
-_G.AutoAttackOnlyToggle=CreateToggleUI(MainFarmPage,"⚡ Kill Aura ",EngineConfig.AutoAttackOnly,function(v)
+_G.TargetChestToggle=CreateToggleUI(MainFarmPage,"📦 Chest  [prio 1]",EngineConfig.FarmTargetChest,function(v)
+    EngineConfig.FarmTargetChest=v
+end)
+
+_G.TargetEggToggle=CreateToggleUI(MainFarmPage,"🥚 Egg  [prio 2]",EngineConfig.FarmTargetEgg,function(v)
+    EngineConfig.FarmTargetEgg=v
+end)
+
+CreateSection(MainFarmPage,"Utilities")
+
+_G.AutoAttackOnlyToggle=CreateToggleUI(MainFarmPage,"⚡ Kill Aura",EngineConfig.AutoAttackOnly,function(v)
     EngineConfig.AutoAttackOnly=v
-end)
-
--- Toggle: Auto Chest (Prioritas 1 — mengabaikan enemy sepenuhnya)
-_G.AutoChestToggle=CreateToggleUI(MainFarmPage,"📦 Auto Chest ",EngineConfig.AutoChestActive,function(v)
-    EngineConfig.AutoChestActive=v
-    if v then
-        CustomNotify("📦 AUTO CHEST","Aktif! Enemy diabaikan.",2)
-        task.spawn(startFarmLoop)
-    end
-end)
-
--- Toggle: Auto Egg (Prioritas 2 — mengabaikan enemy, didahulukan setelah Chest)
-_G.AutoEggToggle=CreateToggleUI(MainFarmPage,"🥚 Auto Egg ",EngineConfig.AutoEggActive,function(v)
-    EngineConfig.AutoEggActive=v
-    if v then
-        CustomNotify("🥚 AUTO EGG","Aktif! F1→3stud+proximity, F2→posisi Vector.",2)
-        task.spawn(startFarmLoop)
-    end
 end)
 
 _G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Again",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
@@ -1823,11 +1811,11 @@ end)
 function SyncAllVisualUI()
     pcall(function()
         -- Tab 1 — Farm
-        if _G.FarmMonsterToggle    then _G.FarmMonsterToggle:SetValue(EngineConfig.AutoFarmMonster) end
-        if _G.AutoSearchToggle     then _G.AutoSearchToggle:SetValue(EngineConfig.AutoSearchMonster) end
+        if _G.AutoFarmToggle       then _G.AutoFarmToggle:SetValue(EngineConfig.AutoFarmActive) end
+        if _G.TargetMonsterToggle  then _G.TargetMonsterToggle:SetValue(EngineConfig.FarmTargetMonster) end
+        if _G.TargetChestToggle    then _G.TargetChestToggle:SetValue(EngineConfig.FarmTargetChest) end
+        if _G.TargetEggToggle      then _G.TargetEggToggle:SetValue(EngineConfig.FarmTargetEgg) end
         if _G.AutoAttackOnlyToggle then _G.AutoAttackOnlyToggle:SetValue(EngineConfig.AutoAttackOnly) end
-        if _G.AutoChestToggle      then _G.AutoChestToggle:SetValue(EngineConfig.AutoChestActive) end
-        if _G.AutoEggToggle        then _G.AutoEggToggle:SetValue(EngineConfig.AutoEggActive) end
         if _G.ReplayToggle         then _G.ReplayToggle:SetValue(EngineConfig.AutoReplayActive) end
         if _G.WorldDropdown        then _G.WorldDropdown:SetValue(EngineConfig.SelectedWorld) end
         -- Tab 1 — Metode & Posisi
