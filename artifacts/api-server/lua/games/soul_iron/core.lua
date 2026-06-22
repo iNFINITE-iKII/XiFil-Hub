@@ -128,7 +128,7 @@ ctx.EngineConfig = {
 ctx.GuiConfig = {
     Transparency = 0,           -- 0 opaque → 0.85 very transparent
     Theme        = "Cyan",
-    GestureOpen  = "Slide",     -- "Slide" or "Click"
+    GestureOpen  = "Click",     -- "Slide" or "Click"
     AccentColor  = Color3.fromRGB(96,205,255),
 }
 
