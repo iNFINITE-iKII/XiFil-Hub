@@ -814,15 +814,14 @@ local function startFarmLoop()
         elseif EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             local egg=Workspace:FindFirstChild("DragonEgg")
-            local ok,eggCF=pcall(function() return egg:GetPivot() end)
-            if ok and eggCF then
-                local eggPos=eggCF.Position
+            -- Referensi langsung ke Part — bukan cache posisi, selalu baca terkini
+            local eggPart = egg and egg:FindFirstChild("EggModel") and egg.EggModel:FindFirstChild("Part")
+            if eggPart then
                 myHum.PlatformStand=true
 
-                -- ▶ FASE 1: TP ke atas egg + fire proximity secara bersamaan (tidak sequential)
+                -- ▶ FASE 1: TP ke atas Part + fire proximity bersamaan (posisi baca real-time)
                 CombatEngine.ResetPhysics(myHRP)
-                myHRP.CFrame=CFrame.new(eggPos+Vector3.new(0,3,0),eggPos)
-                -- jalankan proximity di task terpisah agar tidak blocking movement
+                myHRP.CFrame=CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
                 task.spawn(function()
                     pcall(function()
                         for _,obj in ipairs(egg:GetDescendants()) do
@@ -832,9 +831,9 @@ local function startFarmLoop()
                 end)
                 task.wait(0.05)
 
-                -- ▶ FASE 2: orbit/gerak ke posisi FarmPosition (sama seperti chest & monster)
-                local dropCF=GetPositionCFrame(eggPos,EngineConfig.FarmPosition)
-                ApplyMovement(myHRP,dropCF)
+                -- ▶ FASE 2: orbit/gerak — posisi dibaca ulang agar tracking egg yang bergerak
+                local dropCF=GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
+                ApplyMovement(myHRP, dropCF)
 
                 task.wait(EngineConfig.CFrameDelay)
             else Services.RunService.Heartbeat:Wait() end
@@ -925,7 +924,14 @@ end)
 task.spawn(function()
     while true do
         if EngineConfig.AutoWeaponSwitchActive then
+            -- Sementara lepas PlatformStand agar server menerima weapon switch
+            local char=LocalPlayer.Character
+            local hum=char and char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand=false end
+            task.wait(0.05)
             pcall(function() EquipmentRE:FireServer("ChangeWeaponSlot") end)
+            task.wait(0.1)
+            -- Farm loop akan kembalikan PlatformStand=true otomatis di iterasi berikutnya
             task.wait(3)
         else task.wait(0.5) end
     end
