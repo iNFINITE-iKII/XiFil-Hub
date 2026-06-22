@@ -1362,10 +1362,8 @@ _G.AutoEggToggle=CreateToggleUI(MainFarmPage,"🥚 Auto Egg ",EngineConfig.AutoE
         task.spawn(startFarmLoop)
     end
 end)
-
-CreateLabelUI(MainFarmPage, "⚠️ Important: Requires Virtual English. Auto Replay only triggers on Victory and stops on Failure.")
-        
-_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Against (Must use virtual english to work ) ",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
+   
+_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Against",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end "Important: Requires Virtual English. Auto Replay only triggers on Victory and stops on Failure.")
 
 CreateSection(MainFarmPage,"Target Selector")
 
