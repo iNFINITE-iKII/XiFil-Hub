@@ -1364,7 +1364,7 @@ _G.AutoEggToggle=CreateToggleUI(MainFarmPage,"🥚 Auto Egg ",EngineConfig.AutoE
     end
 end)
    
-_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Against",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end "Important: Requires Virtual English. Auto Replay only triggers on Victory and stops on Failure.")
+_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Against",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end )
 
 CreateSection(MainFarmPage,"Target Selector")
 
