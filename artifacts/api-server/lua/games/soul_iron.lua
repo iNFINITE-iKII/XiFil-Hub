@@ -814,14 +814,20 @@ local function startFarmLoop()
         elseif EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             local egg=Workspace:FindFirstChild("DragonEgg")
-            -- Referensi langsung ke Part — bukan cache posisi, selalu baca terkini
             local eggPart = egg and egg:FindFirstChild("EggModel") and egg.EggModel:FindFirstChild("Part")
+            if not eggPart then _G._eggApproached=nil end  -- egg hilang, reset untuk egg berikutnya
             if eggPart then
                 myHum.PlatformStand=true
 
-                -- ▶ FASE 1: TP ke atas Part + fire proximity bersamaan (posisi baca real-time)
-                CombatEngine.ResetPhysics(myHRP)
-                myHRP.CFrame=CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
+                -- TP hanya sekali saat pertama kali masuk egg (bukan setiap frame)
+                if not _G._eggApproached then
+                    _G._eggApproached = true
+                    CombatEngine.ResetPhysics(myHRP)
+                    myHRP.CFrame = CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
+                    task.wait(0.05)
+                end
+
+                -- Fire proximity setiap frame (ringan, tidak blocking)
                 task.spawn(function()
                     pcall(function()
                         for _,obj in ipairs(egg:GetDescendants()) do
@@ -829,10 +835,9 @@ local function startFarmLoop()
                         end
                     end)
                 end)
-                task.wait(0.05)
 
-                -- ▶ FASE 2: orbit/gerak — posisi dibaca ulang agar tracking egg yang bergerak
-                local dropCF=GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
+                -- Orbit terus-menerus seperti monster & chest (posisi selalu terkini)
+                local dropCF = GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
                 ApplyMovement(myHRP, dropCF)
 
                 task.wait(EngineConfig.CFrameDelay)
@@ -883,6 +888,7 @@ local function startFarmLoop()
         if myHum then myHum.PlatformStand=false end
         EngineConfig.IsLockDelay=false
     end)
+    _G._eggApproached=nil  -- reset agar egg berikutnya di-approach ulang
     _farmLoopRunning=false
 end
 
