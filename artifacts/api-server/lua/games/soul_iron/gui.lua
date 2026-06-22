@@ -1043,4 +1043,9 @@ end)
 
 ConfigSystem.ExecuteAutoLoad(function() ctx.SyncAllVisualUI() end)
 
+-- Auto-buka window saat pertama kali dijalankan
+task.delay(0.5, function()
+    openGUI()
+end)
+
 CustomNotify("XIFIL Hub PRO","Iron Soul V5 — Siap!",4)
