@@ -24,14 +24,34 @@ ctx.TweenService = TweenService
 
 -- ── Remotes ───────────────────────────────────────────────────────────────────
 local RS = S.ReplicatedStorage
-ctx.PlayerActionRE = RS:WaitForChild("Remotes"):WaitForChild("PlayerActionRE")
-ctx.GameRoundRE    = RS:WaitForChild("Remotes"):WaitForChild("GameRoundRE")
-ctx.GameMatchRE    = RS:WaitForChild("Remotes"):WaitForChild("GameMatchRE")
-local FW = RS:WaitForChild("Framework")
-ctx.EquipmentRE  = FW:WaitForChild("Gameplay"):WaitForChild("EquipmentSystem"):WaitForChild("EquipmentRE")
-ctx.ForgeRF      = FW:WaitForChild("Features"):WaitForChild("ForgeSystem"):WaitForChild("ForgeRF")
-ctx.MaterialRE   = FW:WaitForChild("Gameplay"):WaitForChild("EquipmentSystem"):WaitForChild("MaterialUtil"):WaitForChild("RemoteEvent")
-ctx.WorldPlaceRE = FW:WaitForChild("Gameplay"):WaitForChild("WorldPlace"):WaitForChild("WorldUtil"):WaitForChild("RemoteEvent")
+local Remotes = RS:WaitForChild("Remotes", 10)
+if Remotes then
+    ctx.PlayerActionRE = Remotes:WaitForChild("PlayerActionRE", 10)
+    ctx.GameRoundRE    = Remotes:WaitForChild("GameRoundRE", 10)
+    ctx.GameMatchRE    = Remotes:WaitForChild("GameMatchRE", 10)
+end
+local FW = RS:WaitForChild("Framework", 10)
+if FW then
+    local Gameplay = FW:WaitForChild("Gameplay", 10)
+    local Features = FW:WaitForChild("Features", 10)
+    if Gameplay then
+        local EqSys = Gameplay:WaitForChild("EquipmentSystem", 10)
+        if EqSys then
+            ctx.EquipmentRE = EqSys:WaitForChild("EquipmentRE", 10)
+            local MatUtil = EqSys:WaitForChild("MaterialUtil", 10)
+            if MatUtil then ctx.MaterialRE = MatUtil:WaitForChild("RemoteEvent", 10) end
+        end
+        local WP = Gameplay:WaitForChild("WorldPlace", 10)
+        if WP then
+            local WU = WP:WaitForChild("WorldUtil", 10)
+            if WU then ctx.WorldPlaceRE = WU:WaitForChild("RemoteEvent", 10) end
+        end
+    end
+    if Features then
+        local ForgeSys = Features:WaitForChild("ForgeSystem", 10)
+        if ForgeSys then ctx.ForgeRF = ForgeSys:WaitForChild("ForgeRF", 10) end
+    end
+end
 
 -- ── Constants ─────────────────────────────────────────────────────────────────
 ctx.WORLD_NAMES = { "Starless Forest", "Frozen Valley", "Oathlost Castle" }
