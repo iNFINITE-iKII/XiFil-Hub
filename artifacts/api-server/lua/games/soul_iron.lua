@@ -4,7 +4,7 @@
 -- URL loadstring: loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=soul_iron"))()
 --------------------------------------------------------------------------------
 
-local BASE = "https://fc51353d-d10e-4762-917a-8333cf7b961e-00-2jlz6g90p91o3.janeway.replit.dev"
+local BASE = "https://xifil-hub-production.up.railway.app"
 
 -- Shared context table — setiap modul menerima dan mengisi tabel ini
 local ctx = {}
