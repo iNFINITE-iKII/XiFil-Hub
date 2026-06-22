@@ -1323,7 +1323,7 @@ local MainFarmPage=CreateTab("🏠 Farm",1)
 CreateSection(MainFarmPage,"Farm Engine Control")
 
 -- Toggle: Auto Farm Monster (Prioritas 3: serang enemy yang ada)
-_G.FarmMonsterToggle=CreateToggleUI(MainFarmPage,"🗡️ Auto Farm Monster (serang enemy)",EngineConfig.AutoFarmMonster,function(v)
+_G.FarmMonsterToggle=CreateToggleUI(MainFarmPage,"🗡️ Auto Farm Monster ",EngineConfig.AutoFarmMonster,function(v)
     EngineConfig.AutoFarmMonster=v
     if v then
         if checkVictoryUi() then task.spawn(function() DisableAutoFarm("Victory aktif.") end)
@@ -1363,7 +1363,9 @@ _G.AutoEggToggle=CreateToggleUI(MainFarmPage,"🥚 Auto Egg ",EngineConfig.AutoE
     end
 end)
 
-_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Again",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
+CreateLabelUI(MainFarmPage, "⚠️ Important: Requires Virtual English. Auto Replay only triggers on Victory and stops on Failure.")
+        
+_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Against (Must use virtual english to work ) ",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
 
 CreateSection(MainFarmPage,"Target Selector")
 
@@ -1914,27 +1916,27 @@ end
 
 CreateSection(ForgePage,"NPC Utility Access")
 
-CreateButton(ForgePage,"🔮  Buka Enchantment ",function()
+CreateButton(ForgePage,"🔮  Open Enchant&Fuse Rune ",function()
     TPAndOpenByKeyword({"enchant"},"ENCHANTMENT")
 end)
 
-CreateButton(ForgePage,"🛒  Buka Grocery",function()
+CreateButton(ForgePage,"🛒  Open Grocery",function()
     TPAndOpenByKeyword({"grocery","grocer"},"GROCERY")
 end)
 
-CreateButton(ForgePage,"🐾  Buka Pet Upgrade",function()
+CreateButton(ForgePage,"🐾  Open Pet Upgrade",function()
     TPAndOpenByKeyword({"pet","upgrade","petupgrade"},"PET UPGRADE")
 end)
 
-CreateButton(ForgePage,"🏕️  Buka Pet Expedition",function()
+CreateButton(ForgePage,"🏕️  Open Pet Expedition",function()
     TPAndOpenByKeyword({"expedition","petexp"},"PET EXPEDITION")
 end)
 
-CreateButton(ForgePage,"✨  Buka Runes Equipment",function()
+CreateButton(ForgePage,"✨  Open Upgrade Equipment",function()
     TPAndOpenByKeyword({"bless","blessing"},"BLESS EQUIPMENT")
 end)
 
-CreateButton(ForgePage,"✨  Buka The Guide ",function()
+CreateButton(ForgePage,"✨  Open The Guide ",function()
     TPAndOpenByKeyword({"guide","the"},"THE GUIDE")
 end)
 
