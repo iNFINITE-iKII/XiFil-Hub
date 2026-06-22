@@ -1,1 +1,0 @@
-- [Soul Iron Module System](soul-iron-modules.md) — soul_iron.lua adalah orchestrator; 5 modul di lua/games/soul_iron/ dimuat via /api/lua/module/soul_iron/:name
