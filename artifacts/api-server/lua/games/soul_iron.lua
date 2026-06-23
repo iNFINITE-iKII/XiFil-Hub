@@ -868,13 +868,16 @@ local function startFarmLoop()
             CombatEngine.ResetPhysics(myHRP)
             noTargetTimer=noTargetTimer+0.1
             task.wait(0.1)
-            -- Find selalu berjalan saat Auto Farm ON dan tidak ada target
-            if noTargetTimer>=3 then
+            -- World Search hanya aktif jika FarmTargetMonster ON
+            -- (jika hanya Chest/Egg yang on, tidak perlu cari world baru)
+            if noTargetTimer>=3 and EngineConfig.FarmTargetMonster then
                 noTargetTimer=0
                 if worldIdx==1 then Navigation.SearchWorld1(myHRP,myHum)
                 elseif worldIdx==2 then Navigation.SearchWorld2(myHRP,myHum)
                 elseif worldIdx==3 then Navigation.SearchWorld3(myHRP,myHum)
                 end
+            elseif noTargetTimer>=3 then
+                noTargetTimer=0  -- reset timer meski tidak search, agar tidak numpuk
             end
         end
     end
@@ -1248,51 +1251,17 @@ _G.TargetMonsterToggle=_farmTargetApis[1]
 _G.TargetChestToggle  =_farmTargetApis[2]
 _G.TargetEggToggle    =_farmTargetApis[3]
 
-CreateSection(MainFarmPage,"Utilities")
-
-_G.AutoAttackOnlyToggle=CreateToggleUI(MainFarmPage,"⚡ Kill Aura",EngineConfig.AutoAttackOnly,function(v)
-    EngineConfig.AutoAttackOnly=v
-end)
-
-_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Again",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
-
-CreateSection(MainFarmPage,"Target Selector")
-
-local NormalDropdown=CreateCycleUI(MainFarmPage,"Normal Mob",GameLists.NormalNPCs,"None",function(v)
-    EngineConfig.SelectedNormalNpcId=(v~="None") and v or nil
-end)
-local BossDropdown=CreateCycleUI(MainFarmPage,"Boss Mob",GameLists.BossNPCs,"None",function(v)
-    EngineConfig.SelectedBossNpcId=(v~="None") and v or nil
-end)
-
-CreateButton(MainFarmPage,"🔄 Scan Map Targets",function()
-    local normalIds,bossIds={"None"},{"None"}
-    local ef=Workspace:FindFirstChild("EnemyNpc")
-    if ef then
-        local cn,cb={},{}
-        for _,m in ipairs(ef:GetChildren()) do
-            local id=CombatEngine.GetNpcId(m)
-            if id and id~="" then
-                if CombatEngine.GetLevelType(m)=="boss" then
-                    if not cb[id] then cb[id]=true; table.insert(bossIds,id) end
-                else
-                    if not cn[id] then cn[id]=true; table.insert(normalIds,id) end
-                end
-            end
-        end
-    end
-    GameLists.NormalNPCs=normalIds; GameLists.BossNPCs=bossIds
-    NormalDropdown:SetValues(normalIds); BossDropdown:SetValues(bossIds)
-    CustomNotify("Scan","Target disinkronkan.",2)
-end)
-
 CreateSection(MainFarmPage,"Metode & Posisi Gerakan")
 
 _G.FarmMethodDropdown=CreateCycleUI(MainFarmPage,"Metode",{"CFrame","Lerp"},EngineConfig.FarmMethod,function(v) EngineConfig.FarmMethod=v end)
 _G.FarmPositionDropdown=CreateDropdownUI(MainFarmPage,"Posisi Farm",POSITION_MODES,EngineConfig.FarmPosition,function(v) EngineConfig.FarmPosition=v end)
-_G.LerpAlphaInput=CreateInputUI(MainFarmPage,"Lerp Alpha (0–1)",EngineConfig.LerpAlpha,false,function(v) EngineConfig.LerpAlpha=math.clamp(tonumber(v) or 0.3,0.01,1) end)
 
 CreateSection(MainFarmPage,"Skill Config")
+
+-- Kill Aura di paling atas Skill Config
+_G.AutoAttackOnlyToggle=CreateToggleUI(MainFarmPage,"⚡ Kill Aura",EngineConfig.AutoAttackOnly,function(v)
+    EngineConfig.AutoAttackOnly=v
+end)
 
 _G.AutoSkillToggle=CreateToggleUI(MainFarmPage,"🎯 Enable Auto Skill",EngineConfig.AutoSkillActive,function(v)
     EngineConfig.AutoSkillActive=v; if v then CustomNotify("⚔️ SKILL","Auto Skill AKTIF!",2) end
@@ -1314,13 +1283,29 @@ _G.SkillActive1Toggle=_skillApis[1]
 _G.SkillActive2Toggle=_skillApis[2]
 _G.SkillActiveUToggle=_skillApis[3]
 
-_G.SkillCooldownInput=CreateInputUI(MainFarmPage,"Skill Cooldown (s)",EngineConfig.SkillCooldownDelay,false,function(v)
-    EngineConfig.SkillCooldownDelay=tonumber(v) or 0.5
-end)
-
 CreateSection(MainFarmPage,"Weapon Switcher")
 _G.AutoSwitchToggle=CreateToggleUI(MainFarmPage,"🎒 Auto Weapon Switcher (3s)",EngineConfig.AutoWeaponSwitchActive,function(v)
     EngineConfig.AutoWeaponSwitchActive=v; if v then CustomNotify("🎒 WEAPON","Switcher AKTIF!",2) end
+end)
+
+CreateSection(MainFarmPage,"Utilities")
+
+_G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Again",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
+
+local _AUTOEXEC_CODE = 'loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=soul_iron"))()'
+local _queue_teleport = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+_G.AutoExecuteToggle = CreateToggleUI(MainFarmPage,"⚡ Auto Exec on Server Hop/Rejoin",EngineConfig.AutoExecuteOnRejoin,function(state)
+    EngineConfig.AutoExecuteOnRejoin=state
+    if state then
+        if _queue_teleport then
+            _queue_teleport(_AUTOEXEC_CODE)
+            CustomNotify("⚡ AUTO EXEC AKTIF","Script akan otomatis jalan saat pindah server/rejoin.",4)
+        else
+            CustomNotify("❌ GAGAL","Executor kamu tidak mendukung queue_on_teleport.",4)
+        end
+    else
+        CustomNotify("⚠️ INFO","Auto Execute dimatikan. Efektif setelah restart game.",4)
+    end
 end)
 
 
@@ -1328,6 +1313,46 @@ end)
 -- [S13] TAB 2 — VECTOR CONFIG
 --------------------------------------------------------------------------------
 local VectorPage=CreateTab("⚙️ Vector",2)
+
+-- ► Target Selector di paling atas Vector
+CreateSection(VectorPage,"Target Selector")
+
+local NormalDropdown=CreateCycleUI(VectorPage,"Normal Mob",GameLists.NormalNPCs,"None",function(v)
+    EngineConfig.SelectedNormalNpcId=(v~="None") and v or nil
+end)
+local BossDropdown=CreateCycleUI(VectorPage,"Boss Mob",GameLists.BossNPCs,"None",function(v)
+    EngineConfig.SelectedBossNpcId=(v~="None") and v or nil
+end)
+
+CreateButton(VectorPage,"🔄 Scan Map Targets",function()
+    local normalIds,bossIds={"None"},{"None"}
+    local ef=Workspace:FindFirstChild("EnemyNpc")
+    if ef then
+        local cn,cb={},{}
+        for _,m in ipairs(ef:GetChildren()) do
+            local id=CombatEngine.GetNpcId(m)
+            if id and id~="" then
+                if CombatEngine.GetLevelType(m)=="boss" then
+                    if not cb[id] then cb[id]=true; table.insert(bossIds,id) end
+                else
+                    if not cn[id] then cn[id]=true; table.insert(normalIds,id) end
+                end
+            end
+        end
+    end
+    GameLists.NormalNPCs=normalIds; GameLists.BossNPCs=bossIds
+    NormalDropdown:SetValues(normalIds); BossDropdown:SetValues(bossIds)
+    CustomNotify("Scan","Target disinkronkan.",2)
+end)
+
+-- ► Dodge Boss di bawah Target Selector
+CreateSection(VectorPage,"Dodge Boss")
+_G.RadiusInput=CreateInputUI(VectorPage,"Orbit Radius",EngineConfig.OrbitRadius,true,function(v)
+    EngineConfig.OrbitRadius=tonumber(v) or 12
+end)
+CreateButton(VectorPage,"🎯 Dodge Boss Skil (20)",function() EngineConfig.OrbitRadius=20; _G.RadiusInput:SetValue(20) end)
+CreateButton(VectorPage,"🎯 Dodge Boss Skil(200)",function() EngineConfig.OrbitRadius=200; _G.RadiusInput:SetValue(200) end)
+
 CreateSection(VectorPage,"Kinematic System Parameters")
 
 _G.HeightInput=CreateInputUI(VectorPage,"Height Normal Target (Y)",EngineConfig.StandHeight,true,function(v)
@@ -1336,11 +1361,6 @@ end)
 _G.BossHeightInput=CreateInputUI(VectorPage,"Height Boss Target (Y)",EngineConfig.BossHeight,true,function(v)
     EngineConfig.BossHeight=tonumber(v) or 25
 end)
-_G.RadiusInput=CreateInputUI(VectorPage,"Orbit Radius",EngineConfig.OrbitRadius,true,function(v)
-    EngineConfig.OrbitRadius=tonumber(v) or 12
-end)
-CreateButton(VectorPage,"🎯 Dodge Boss Skil (20)",function() EngineConfig.OrbitRadius=20; _G.RadiusInput:SetValue(20) end)
-CreateButton(VectorPage,"🎯 Dodge Boss Skil(200)",function() EngineConfig.OrbitRadius=200; _G.RadiusInput:SetValue(200) end)
 _G.SpeedInput=CreateInputUI(VectorPage,"Orbit Speed",EngineConfig.OrbitSpeed,true,function(v)
     EngineConfig.OrbitSpeed=tonumber(v) or 5
 end)
@@ -1349,6 +1369,10 @@ _G.DelayInput=CreateInputUI(VectorPage,"CFrame Delay",EngineConfig.CFrameDelay,f
 end)
 _G.MultiplierInput=CreateInputUI(VectorPage,"Hit Multiplier",EngineConfig.HitMultiplier,true,function(v)
     EngineConfig.HitMultiplier=tonumber(v) or 1
+end)
+_G.LerpAlphaInput=CreateInputUI(VectorPage,"Lerp Alpha (0–1)",EngineConfig.LerpAlpha,false,function(v) EngineConfig.LerpAlpha=math.clamp(tonumber(v) or 0.3,0.01,1) end)
+_G.SkillCooldownInput=CreateInputUI(VectorPage,"Skill Cooldown (s)",EngineConfig.SkillCooldownDelay,false,function(v)
+    EngineConfig.SkillCooldownDelay=tonumber(v) or 0.5
 end)
 
 
@@ -1423,28 +1447,6 @@ _G.AntiPausedToggle=CreateToggleUI(ProfilePage,"⏳ Disable Gameplay Paused",Eng
     CustomNotify("GUARD",state and "Anti-Paused aktif." or "Nonaktif.",2)
 end)
 
-local AUTOEXEC_CODE = 'loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=soul_iron"))()'
-
--- Mendeteksi fungsi queue_on_teleport bawaan executor
-local queue_teleport = queue_on_teleport or queueonteleport or syn.queue_on_teleport
-
-_G.AutoExecuteToggle = CreateToggleUI(ProfilePage, "⚡ Auto Exec on Server Hop/Rejoin", EngineConfig.AutoExecuteOnRejoin, function(state)
-    EngineConfig.AutoExecuteOnRejoin = state
-    
-    if state then
-        if queue_teleport then
-            -- Menambahkan script ke antrean teleportasi
-            queue_teleport(AUTOEXEC_CODE)
-            CustomNotify("⚡ AUTO EXEC AKTIF", "Script akan otomatis jalan saat pindah server/rejoin.", 4)
-        else
-            CustomNotify("❌ GAGAL", "Executor kamu tidak mendukung queue_on_teleport.", 4)
-        end
-    else
-        -- Catatan: Kebanyakan executor tidak memiliki fungsi untuk menghapus antrean teleport
-        -- Jadi kita hanya memberikan notifikasi bahwa toggle dimatikan untuk sesi berikutnya
-        CustomNotify("⚠️ INFO", "Auto Execute dimatikan. Efektif setelah restart game.", 4)
-    end
-end)
 
 --------------------------------------------------------------------------------
 -- [S15] TAB 4 — SELL
