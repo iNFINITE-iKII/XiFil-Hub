@@ -65,16 +65,6 @@ local POSITION_MODES = {
     "Belakang Target", "Acak",
 }
 
--- Preset skill
-local SKILL_PRESETS = {
-    "Semua (1+2+U)",
-    "Skill1 Saja",
-    "Skill2 Saja",
-    "SkillU Saja",
-    "Skill1 + Skill2",
-    "Skill1 + SkillU",
-    "Skill2 + SkillU",
-}
 
 -- Nama world Room (display → internal key)
 local ROOM_WORLD_DISPLAY = {
@@ -129,7 +119,9 @@ local EngineConfig = {
 
     -- == SKILL ==
     AutoSkillActive    = false,
-    SkillPreset        = "Semua (1+2+U)",
+    SkillActive1       = true,
+    SkillActive2       = true,
+    SkillActiveU       = true,
     SkillCooldownDelay = 0.5,
 
     -- == WEAPON ==
@@ -819,24 +811,25 @@ local function startFarmLoop()
             if eggPart then
                 myHum.PlatformStand=true
 
-                -- TP hanya sekali saat pertama kali masuk egg (bukan setiap frame)
                 if not _G._eggApproached then
                     _G._eggApproached = true
+                    -- ▶ FASE 1: CFrame ke egg lalu diam 1 detik sambil proximity terus dikirim
                     CombatEngine.ResetPhysics(myHRP)
                     myHRP.CFrame = CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
-                    task.wait(0.05)
+                    local elapsed = 0
+                    while elapsed < 1 do
+                        if not EngineConfig.AutoFarmActive then break end
+                        pcall(function()
+                            for _,obj in ipairs(egg:GetDescendants()) do
+                                if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
+                            end
+                        end)
+                        task.wait(0.1)
+                        elapsed = elapsed + 0.1
+                    end
                 end
 
-                -- Fire proximity setiap frame (ringan, tidak blocking)
-                task.spawn(function()
-                    pcall(function()
-                        for _,obj in ipairs(egg:GetDescendants()) do
-                            if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
-                        end
-                    end)
-                end)
-
-                -- Orbit terus-menerus seperti monster & chest (posisi selalu terkini)
+                -- ▶ FASE 2: Orbit seperti monster & chest (setelah 1 detik approach selesai)
                 local dropCF = GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
                 ApplyMovement(myHRP, dropCF)
 
@@ -897,24 +890,14 @@ end
 -- [S09] BACKGROUND LOOPS
 --------------------------------------------------------------------------------
 
--- Helper: cek skill mana yang aktif berdasarkan preset
-local function getActiveSkillsFromPreset(preset)
-    if preset=="Semua (1+2+U)"   then return {"Skill1","Skill2","SkillU"}
-    elseif preset=="Skill1 Saja" then return {"Skill1"}
-    elseif preset=="Skill2 Saja" then return {"Skill2"}
-    elseif preset=="SkillU Saja" then return {"SkillU"}
-    elseif preset=="Skill1 + Skill2" then return {"Skill1","Skill2"}
-    elseif preset=="Skill1 + SkillU" then return {"Skill1","SkillU"}
-    elseif preset=="Skill2 + SkillU" then return {"Skill2","SkillU"}
-    end
-    return {"Skill1","Skill2","SkillU"}
-end
-
--- Loop: Auto Skill
+-- Loop: Auto Skill (berdasarkan pilihan individual Skill1/Skill2/SkillU)
 task.spawn(function()
     while true do
         if EngineConfig.AutoSkillActive then
-            local skills=getActiveSkillsFromPreset(EngineConfig.SkillPreset)
+            local skills={}
+            if EngineConfig.SkillActive1 then table.insert(skills,"Skill1") end
+            if EngineConfig.SkillActive2 then table.insert(skills,"Skill2") end
+            if EngineConfig.SkillActiveU then table.insert(skills,"SkillU") end
             for _,skillName in ipairs(skills) do
                 for combo=1,3 do
                     pcall(function() PlayerActionRE:FireServer("SkillAction",skillName,combo) end)
@@ -1022,6 +1005,46 @@ local function CreateButton(parent,text,callback)
     btn.MouseEnter:Connect(function() btn.BackgroundColor3=Color3.fromRGB(35,35,45) end)
     btn.MouseLeave:Connect(function() btn.BackgroundColor3=Color3.fromRGB(25,25,35) end)
     btn.MouseButton1Click:Connect(callback); return btn
+end
+
+-- Multi-check: baris pill button yang bisa dipilih lebih dari 1
+local function CreateMultiCheckUI(parent, labelText, items, states, callbacks)
+    local wrapper=Instance.new("Frame"); wrapper.Parent=parent
+    wrapper.BackgroundColor3=Color3.fromRGB(20,20,27); wrapper.BorderSizePixel=0
+    wrapper.Size=UDim2.new(1,0,0,60); Instance.new("UICorner",wrapper).CornerRadius=UDim.new(0,6)
+    Instance.new("UIStroke",wrapper).Color=Color3.fromRGB(40,40,50)
+    local lbl=Instance.new("TextLabel",wrapper); lbl.BackgroundTransparency=1
+    lbl.Position=UDim2.new(0,12,0,4); lbl.Size=UDim2.new(1,-16,0,16)
+    lbl.Font=Enum.Font.GothamMedium; lbl.Text=labelText
+    lbl.TextColor3=Color3.fromRGB(150,150,160); lbl.TextSize=10
+    lbl.TextXAlignment=Enum.TextXAlignment.Left
+    local row=Instance.new("Frame",wrapper); row.BackgroundTransparency=1
+    row.Position=UDim2.new(0,8,0,24); row.Size=UDim2.new(1,-16,0,28)
+    local layout=Instance.new("UIListLayout",row)
+    layout.FillDirection=Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment=Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment=Enum.VerticalAlignment.Center
+    layout.Padding=UDim.new(0,6)
+    local apis={}
+    for i,item in ipairs(items) do
+        local active=states[i]
+        local btn=Instance.new("TextButton",row)
+        btn.Size=UDim2.new(0,72,0,26)
+        btn.BackgroundColor3=active and Color3.fromRGB(96,205,255) or Color3.fromRGB(35,35,45)
+        btn.TextColor3=active and Color3.fromRGB(10,10,15) or Color3.fromRGB(180,180,180)
+        btn.Text=item; btn.Font=Enum.Font.GothamSemibold; btn.TextSize=11; btn.AutoButtonColor=false
+        Instance.new("UICorner",btn).CornerRadius=UDim.new(0,6)
+        local api={state=active}
+        function api:SetValue(val)
+            api.state=val
+            btn.BackgroundColor3=val and Color3.fromRGB(96,205,255) or Color3.fromRGB(35,35,45)
+            btn.TextColor3=val and Color3.fromRGB(10,10,15) or Color3.fromRGB(180,180,180)
+            callbacks[i](val)
+        end
+        btn.MouseButton1Click:Connect(function() api:SetValue(not api.state) end)
+        apis[i]=api
+    end
+    return apis
 end
 
 local function CreateToggleUI(parent,text,default,callback)
@@ -1186,9 +1209,15 @@ end
 --------------------------------------------------------------------------------
 local MainFarmPage=CreateTab("🏠 Farm",1)
 
+-- ► World Selector di paling atas
+CreateSection(MainFarmPage,"World")
+_G.WorldDropdown=CreateCycleUI(MainFarmPage,"🌍 World",WORLD_NAMES,EngineConfig.SelectedWorld,function(v)
+    EngineConfig.SelectedWorld=v
+end)
+
 CreateSection(MainFarmPage,"Farm Engine Control")
 
--- ► MASTER TOGGLE: 1 tombol on/off untuk semua farm
+-- ► MASTER TOGGLE
 _G.AutoFarmToggle=CreateToggleUI(MainFarmPage,"🌾 Auto Farm",EngineConfig.AutoFarmActive,function(v)
     EngineConfig.AutoFarmActive=v
     if v then
@@ -1198,20 +1227,21 @@ _G.AutoFarmToggle=CreateToggleUI(MainFarmPage,"🌾 Auto Farm",EngineConfig.Auto
 end)
 ToggleControl=_G.AutoFarmToggle
 
-CreateSection(MainFarmPage,"Target Selection  (aktif saat Auto Farm ON)")
-
--- ► 3 sub-toggle pilih target: bisa kombinasi bebas
-_G.TargetMonsterToggle=CreateToggleUI(MainFarmPage,"🗡️ Monster",EngineConfig.FarmTargetMonster,function(v)
-    EngineConfig.FarmTargetMonster=v
-end)
-
-_G.TargetChestToggle=CreateToggleUI(MainFarmPage,"📦 Chest  [prio 1]",EngineConfig.FarmTargetChest,function(v)
-    EngineConfig.FarmTargetChest=v
-end)
-
-_G.TargetEggToggle=CreateToggleUI(MainFarmPage,"🥚 Egg  [prio 2]",EngineConfig.FarmTargetEgg,function(v)
-    EngineConfig.FarmTargetEgg=v
-end)
+-- ► Multi-check: pilih target (bisa lebih dari 1)
+local _farmTargetApis=CreateMultiCheckUI(
+    MainFarmPage,
+    "Auto Farm Target  (aktif saat Auto Farm ON)",
+    {"🗡️ Monster","📦 Chest","🥚 Egg"},
+    {EngineConfig.FarmTargetMonster, EngineConfig.FarmTargetChest, EngineConfig.FarmTargetEgg},
+    {
+        function(v) EngineConfig.FarmTargetMonster=v end,
+        function(v) EngineConfig.FarmTargetChest=v end,
+        function(v) EngineConfig.FarmTargetEgg=v end,
+    }
+)
+_G.TargetMonsterToggle=_farmTargetApis[1]
+_G.TargetChestToggle  =_farmTargetApis[2]
+_G.TargetEggToggle    =_farmTargetApis[3]
 
 CreateSection(MainFarmPage,"Utilities")
 
@@ -1222,10 +1252,6 @@ end)
 _G.ReplayToggle=CreateToggleUI(MainFarmPage,"🔄 Auto Play Again",EngineConfig.AutoReplayActive,function(v) EngineConfig.AutoReplayActive=v end)
 
 CreateSection(MainFarmPage,"Target Selector")
-
-_G.WorldDropdown=CreateCycleUI(MainFarmPage,"World",WORLD_NAMES,EngineConfig.SelectedWorld,function(v)
-    EngineConfig.SelectedWorld=v
-end)
 
 local NormalDropdown=CreateCycleUI(MainFarmPage,"Normal Mob",GameLists.NormalNPCs,"None",function(v)
     EngineConfig.SelectedNormalNpcId=(v~="None") and v or nil
@@ -1267,9 +1293,21 @@ _G.AutoSkillToggle=CreateToggleUI(MainFarmPage,"🎯 Enable Auto Skill",EngineCo
     EngineConfig.AutoSkillActive=v; if v then CustomNotify("⚔️ SKILL","Auto Skill AKTIF!",2) end
 end)
 
-_G.SkillPresetDropdown=CreateDropdownUI(MainFarmPage,"Pilih Skill",SKILL_PRESETS,EngineConfig.SkillPreset,function(v)
-    EngineConfig.SkillPreset=v
-end)
+-- Multi-check: pilih skill yang ingin digunakan (bisa lebih dari 1)
+local _skillApis=CreateMultiCheckUI(
+    MainFarmPage,
+    "Skill Aktif  (bisa pilih lebih dari 1)",
+    {"Skill 1","Skill 2","Skill U"},
+    {EngineConfig.SkillActive1, EngineConfig.SkillActive2, EngineConfig.SkillActiveU},
+    {
+        function(v) EngineConfig.SkillActive1=v end,
+        function(v) EngineConfig.SkillActive2=v end,
+        function(v) EngineConfig.SkillActiveU=v end,
+    }
+)
+_G.SkillActive1Toggle=_skillApis[1]
+_G.SkillActive2Toggle=_skillApis[2]
+_G.SkillActiveUToggle=_skillApis[3]
 
 _G.SkillCooldownInput=CreateInputUI(MainFarmPage,"Skill Cooldown (s)",EngineConfig.SkillCooldownDelay,false,function(v)
     EngineConfig.SkillCooldownDelay=tonumber(v) or 0.5
@@ -1835,9 +1873,11 @@ function SyncAllVisualUI()
         if _G.FarmPositionDropdown then _G.FarmPositionDropdown:SetValue(EngineConfig.FarmPosition) end
         if _G.LerpAlphaInput       then _G.LerpAlphaInput:SetValue(EngineConfig.LerpAlpha) end
         -- Tab 1 — Skill
-        if _G.AutoSkillToggle      then _G.AutoSkillToggle:SetValue(EngineConfig.AutoSkillActive) end
-        if _G.SkillPresetDropdown  then _G.SkillPresetDropdown:SetValue(EngineConfig.SkillPreset) end
-        if _G.SkillCooldownInput   then _G.SkillCooldownInput:SetValue(EngineConfig.SkillCooldownDelay) end
+        if _G.AutoSkillToggle   then _G.AutoSkillToggle:SetValue(EngineConfig.AutoSkillActive) end
+        if _G.SkillActive1Toggle then _G.SkillActive1Toggle:SetValue(EngineConfig.SkillActive1) end
+        if _G.SkillActive2Toggle then _G.SkillActive2Toggle:SetValue(EngineConfig.SkillActive2) end
+        if _G.SkillActiveUToggle then _G.SkillActiveUToggle:SetValue(EngineConfig.SkillActiveU) end
+        if _G.SkillCooldownInput then _G.SkillCooldownInput:SetValue(EngineConfig.SkillCooldownDelay) end
         if _G.AutoSwitchToggle     then _G.AutoSwitchToggle:SetValue(EngineConfig.AutoWeaponSwitchActive) end
         -- Tab 2 — Vector
         if _G.HeightInput     then _G.HeightInput:SetValue(EngineConfig.StandHeight) end
