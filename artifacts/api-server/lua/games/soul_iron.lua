@@ -807,29 +807,34 @@ local function startFarmLoop()
             noTargetTimer=0; EngineConfig.IsLockDelay=false
             local egg=Workspace:FindFirstChild("DragonEgg")
             local eggPart = egg and egg:FindFirstChild("EggModel") and egg.EggModel:FindFirstChild("Part")
-            if not eggPart then _G._eggApproached=nil end  -- egg hilang, reset untuk egg berikutnya
+            -- Reset jika egg hilang (bisa karena diambil player lain)
+            if not eggPart then _G._eggApproached=nil end
             if eggPart then
                 myHum.PlatformStand=true
 
-                if not _G._eggApproached then
-                    _G._eggApproached = true
-                    -- ▶ FASE 1: CFrame ke egg lalu diam 1 detik sambil proximity terus dikirim
+                -- Cek per-referensi: egg BERBEDA = pendekatan baru (fix bug multi-egg)
+                if _G._eggApproached ~= eggPart then
+                    _G._eggApproached = eggPart  -- simpan referensi egg ini, bukan boolean
+                    -- ▶ FASE 1: CFrame ke egg, diam 1 detik sambil proximity + attack dikirim
                     CombatEngine.ResetPhysics(myHRP)
                     myHRP.CFrame = CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
                     local elapsed = 0
                     while elapsed < 1 do
                         if not EngineConfig.AutoFarmActive then break end
+                        -- Kirim proximity prompt
                         pcall(function()
                             for _,obj in ipairs(egg:GetDescendants()) do
                                 if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
                             end
                         end)
+                        -- Kirim auto attack ke egg selama fase approach
+                        pcall(function() PlayerActionRE:FireServer("SkillAction","BaseAttack",3,eggPart.CFrame) end)
                         task.wait(0.1)
                         elapsed = elapsed + 0.1
                     end
                 end
 
-                -- ▶ FASE 2: Orbit seperti monster & chest (setelah 1 detik approach selesai)
+                -- ▶ FASE 2: Orbit (setelah 1 detik approach selesai)
                 local dropCF = GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
                 ApplyMovement(myHRP, dropCF)
 
