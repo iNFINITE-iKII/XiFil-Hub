@@ -1,0 +1,4328 @@
+--------------------------------------------------------------------------------
+--// XiFil DRM Wrapper — Template Game Baru
+--// Duplikat file ini, rename sesuai nama game (contoh: blox_fruits.lua)
+--// Lalu isi bagian mainScript di bawah dengan script game kamu
+--------------------------------------------------------------------------------
+
+local SERVER_URL  = "https://xifil-hub-production.up.railway.app"
+local KEY_FILE    = "XiFilPro_Configs/license.key"
+local FOLDER_NAME = "XiFilPro_Configs"
+
+--------------------------------------------------------------------------------
+--// HWID
+--------------------------------------------------------------------------------
+local function getHWID()
+    local parts = {}
+    local ok1, cid = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    if ok1 and cid and cid ~= "" then table.insert(parts, tostring(cid)) end
+
+    local ok2, uid = pcall(function()
+        return tostring(game.Players.LocalPlayer.UserId)
+    end)
+    if ok2 and uid then table.insert(parts, uid) end
+
+    local ok3, execName = pcall(identifyexecutor)
+    if ok3 and execName then table.insert(parts, execName:sub(1, 8)) end
+
+    local raw = table.concat(parts, "|")
+    local hash = 0
+    for i = 1, #raw do
+        hash = (hash * 31 + string.byte(raw, i)) % 2147483647
+    end
+    return string.format("rbx-%x-%s", hash, tostring(game.Players.LocalPlayer.UserId))
+end
+
+--------------------------------------------------------------------------------
+--// BACA / SIMPAN KEY
+--------------------------------------------------------------------------------
+local function readKey()
+    if not isfolder(FOLDER_NAME) then pcall(makefolder, FOLDER_NAME) end
+    if isfile(KEY_FILE) then
+        local ok, content = pcall(readfile, KEY_FILE)
+        if ok and content and content:match("%S") then
+            return content:gsub("%s+", "")
+        end
+    end
+    return nil
+end
+
+local function saveKey(key)
+    pcall(function()
+        if not isfolder(FOLDER_NAME) then makefolder(FOLDER_NAME) end
+        writefile(KEY_FILE, key)
+    end)
+end
+
+local function deleteKey()
+    pcall(function()
+        if isfile(KEY_FILE) then delfile(KEY_FILE) end
+    end)
+end
+
+--------------------------------------------------------------------------------
+--// CEK KEY KE API
+--------------------------------------------------------------------------------
+local function checkLicense(key, hwid)
+    local url = string.format(
+        "%s/api/license/check?key=%s&hwid=%s",
+        SERVER_URL, key, hwid
+    )
+    local ok, response = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    if not ok then return false, "Tidak bisa terhubung ke server." end
+
+    local decoded
+    local decOk = pcall(function()
+        decoded = game:GetService("HttpService"):JSONDecode(response)
+    end)
+    if not decOk or not decoded then return false, "Respons server tidak valid." end
+
+    if decoded.status == "success" then
+        return true, decoded.message or "OK"
+    else
+        return false, decoded.message or "Key tidak valid."
+    end
+end
+
+--------------------------------------------------------------------------------
+--// HELPER: Tween
+--------------------------------------------------------------------------------
+local TweenService = game:GetService("TweenService")
+local function tween(obj, props, duration, style, direction)
+    style     = style     or Enum.EasingStyle.Quart
+    direction = direction or Enum.EasingDirection.Out
+    local info = TweenInfo.new(duration or 0.3, style, direction)
+    local t = TweenService:Create(obj, info, props)
+    t:Play()
+    return t
+end
+
+--------------------------------------------------------------------------------
+--// INPUT KEY — LANDSCAPE MODERN GUI
+--------------------------------------------------------------------------------
+local function promptKey(callback)
+    local PlayerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    local existing = PlayerGui:FindFirstChild("XiFil_KeyPrompt")
+    if existing then existing:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name            = "XiFil_KeyPrompt"
+    gui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+    gui.ResetOnSpawn    = false
+    gui.IgnoreGuiInset  = true
+    gui.Parent          = PlayerGui
+
+    -- ── Backdrop ─────────────────────────────────────────────────────────────
+    local backdrop = Instance.new("Frame", gui)
+    backdrop.Size                   = UDim2.new(1, 0, 1, 0)
+    backdrop.BackgroundColor3       = Color3.fromRGB(0, 0, 0)
+    backdrop.BackgroundTransparency = 1
+    backdrop.BorderSizePixel        = 0
+    backdrop.ZIndex                 = 1
+    tween(backdrop, { BackgroundTransparency = 0.6 }, 0.4)
+
+    -- Card dimensions: 580 wide × 220 tall (landscape rectangle)
+    local CW, CH = 580, 220
+
+    -- ── Glow shadow ──────────────────────────────────────────────────────────
+    local shadow = Instance.new("Frame", gui)
+    shadow.Size                   = UDim2.new(0, CW + 14, 0, CH + 14)
+    shadow.Position               = UDim2.new(0.5, -(CW + 14)/2, 0.62, -(CH + 14)/2)
+    shadow.BackgroundColor3       = Color3.fromRGB(50, 130, 255)
+    shadow.BackgroundTransparency = 0.78
+    shadow.BorderSizePixel        = 0
+    shadow.ZIndex                 = 2
+    Instance.new("UICorner", shadow).CornerRadius = UDim.new(0, 22)
+    tween(shadow, { Position = UDim2.new(0.5, -(CW + 14)/2, 0.5, -(CH + 14)/2) }, 0.5, Enum.EasingStyle.Back)
+
+    -- ── Main card ────────────────────────────────────────────────────────────
+    local card = Instance.new("Frame", gui)
+    card.Size                   = UDim2.new(0, CW, 0, CH)
+    card.Position               = UDim2.new(0.5, -CW/2, 0.62, -CH/2)
+    card.BackgroundColor3       = Color3.fromRGB(11, 13, 20)
+    card.BorderSizePixel        = 0
+    card.ZIndex                 = 3
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+    tween(card, { Position = UDim2.new(0.5, -CW/2, 0.5, -CH/2) }, 0.5, Enum.EasingStyle.Back)
+
+    local stroke = Instance.new("UIStroke", card)
+    stroke.Color       = Color3.fromRGB(40, 140, 255)
+    stroke.Thickness   = 1
+    stroke.Transparency = 0.35
+
+    task.spawn(function()
+        while card.Parent do
+            tween(stroke, { Transparency = 0.7 }, 1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.4)
+            tween(stroke, { Transparency = 0.1 }, 1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.4)
+        end
+    end)
+
+    -- ════════════════════════════════════════════════════════════════════════
+    -- LEFT PANEL  (180px wide)
+    -- ════════════════════════════════════════════════════════════════════════
+    local LP = 180
+
+    local leftPanel = Instance.new("Frame", card)
+    leftPanel.Size             = UDim2.new(0, LP, 1, 0)
+    leftPanel.BackgroundColor3 = Color3.fromRGB(8, 10, 18)
+    leftPanel.BorderSizePixel  = 0
+    leftPanel.ZIndex           = 4
+    Instance.new("UICorner", leftPanel).CornerRadius = UDim.new(0, 16)
+
+    -- Clip right side of left panel corners (overlay a rect)
+    local leftClip = Instance.new("Frame", leftPanel)
+    leftClip.Size             = UDim2.new(0, 16, 1, 0)
+    leftClip.Position         = UDim2.new(1, -16, 0, 0)
+    leftClip.BackgroundColor3 = Color3.fromRGB(8, 10, 18)
+    leftClip.BorderSizePixel  = 0
+    leftClip.ZIndex           = 4
+
+    local leftGrad = Instance.new("UIGradient", leftPanel)
+    leftGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(12, 20, 45)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(8, 10, 22)),
+    })
+    leftGrad.Rotation = 120
+
+    -- Vertical right-edge accent line
+    local leftEdge = Instance.new("Frame", card)
+    leftEdge.Size             = UDim2.new(0, 1, 0, CH - 32)
+    leftEdge.Position         = UDim2.new(0, LP, 0, 16)
+    leftEdge.BackgroundColor3 = Color3.fromRGB(30, 45, 80)
+    leftEdge.BorderSizePixel  = 0
+    leftEdge.ZIndex           = 5
+
+    -- ⚠ GANTI angka di bawah dengan Asset ID logo kamu setelah upload ke Roblox
+    local LOGO_ASSET_ID = "rbxassetid://74294782991577"
+
+    -- Brand icon (logo image) - DIUBAH JADI LEBIH KECIL (56x56)
+    local iconBg = Instance.new("Frame", leftPanel)
+    iconBg.Size              = UDim2.new(0, 56, 0, 56)
+    iconBg.Position          = UDim2.new(0.5, -28, 0, 26)
+    iconBg.BackgroundColor3  = Color3.fromRGB(8, 14, 30)
+    iconBg.BorderSizePixel   = 0
+    iconBg.ClipsDescendants  = true
+    iconBg.ZIndex            = 5
+    Instance.new("UICorner", iconBg).CornerRadius = UDim.new(1, 0)
+
+    -- Glow ring di luar iconBg - DISESUAIKAN AGAR PAS (62x62)
+    local glowRing = Instance.new("Frame", leftPanel)
+    glowRing.Size             = UDim2.new(0, 62, 0, 62)
+    glowRing.Position         = UDim2.new(0.5, -31, 0, 23)
+    glowRing.BackgroundTransparency = 1
+    glowRing.BorderSizePixel  = 0
+    glowRing.ZIndex           = 4
+    Instance.new("UICorner", glowRing).CornerRadius = UDim.new(1, 0)
+
+    local iconStroke = Instance.new("UIStroke", glowRing)
+    iconStroke.Color        = Color3.fromRGB(50, 150, 255)
+    iconStroke.Thickness    = 2
+    iconStroke.Transparency = 0.2
+
+    -- Pulse glow
+    task.spawn(function()
+        while glowRing.Parent do
+            tween(iconStroke, { Transparency = 0.75 }, 1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.2)
+            tween(iconStroke, { Transparency = 0.0 }, 1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.2)
+        end
+    end)
+
+    -- ImageLabel memenuhi seluruh iconBg (di-clip jadi lingkaran)
+    local iconImg = Instance.new("ImageLabel", iconBg)
+    iconImg.Size                   = UDim2.new(1, 0, 1, 0)
+    iconImg.BackgroundTransparency = 1
+    iconImg.Image                  = LOGO_ASSET_ID
+    iconImg.ScaleType              = Enum.ScaleType.Crop
+    iconImg.ZIndex                 = 6
+
+    -- Brand name - WARNA NEON & ANIMASI KEDAP-KEDIP
+    local brandName = Instance.new("TextLabel", leftPanel)
+    brandName.Size                  = UDim2.new(1, -10, 0, 24)
+    brandName.Position              = UDim2.new(0, 5, 0, 86) -- Posisinya dinaikkan agar pas dengan logo baru
+    brandName.BackgroundTransparency = 1
+    brandName.Text                  = "XIFIL HUB"
+    brandName.TextSize              = 15
+    brandName.Font                  = Enum.Font.GothamBold
+    brandName.TextXAlignment        = Enum.TextXAlignment.Center
+    brandName.ZIndex                = 5
+
+    -- Gradasi Warna Baru (Biru Neon & Cyan agar serasi dengan logo)
+    local brandGrad = Instance.new("UIGradient", brandName)
+    brandGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(0, 255, 240)),  -- Biru Neon
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(0, 255, 240)),  -- Cyan Terang
+    })
+
+    -- Loop Animasi Kedap-Kedip pada Teks
+    task.spawn(function()
+        while brandName.Parent do
+            tween(brandName, { TextTransparency = 0.7 }, 1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.0)
+            tween(brandName, { TextTransparency = 0.0 }, 1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(1.0)
+        end
+    end)
+
+    local brandSub = Instance.new("TextLabel", leftPanel)
+    brandSub.Size                  = UDim2.new(1, -10, 0, 16)
+    brandSub.Position              = UDim2.new(0, 5, 0, 122)
+    brandSub.BackgroundTransparency = 1
+    brandSub.Text                  = "PREMIUM"
+    brandSub.TextColor3            = Color3.fromRGB(70, 85, 120)
+    brandSub.TextSize              = 10
+    brandSub.Font                  = Enum.Font.GothamMedium
+    brandSub.TextXAlignment        = Enum.TextXAlignment.Center
+    brandSub.ZIndex                = 5
+
+    -- Discord button (left panel, bottom)
+    local DISCORD_LINK = "https://discord.gg/hWqPM9hbH"
+
+    local dcBtn = Instance.new("TextButton", leftPanel)
+    dcBtn.Size             = UDim2.new(1, -24, 0, 34)
+    dcBtn.Position         = UDim2.new(0, 12, 1, -50)
+    dcBtn.BackgroundColor3 = Color3.fromRGB(50, 52, 100)
+    dcBtn.TextColor3       = Color3.fromRGB(180, 190, 255)
+    dcBtn.Text             = "💬  Discord"
+    dcBtn.TextSize         = 11
+    dcBtn.Font             = Enum.Font.GothamBold
+    dcBtn.BorderSizePixel  = 0
+    dcBtn.ZIndex           = 5
+    Instance.new("UICorner", dcBtn).CornerRadius = UDim.new(0, 8)
+
+    local dcStroke = Instance.new("UIStroke", dcBtn)
+    dcStroke.Color       = Color3.fromRGB(88, 101, 242)
+    dcStroke.Thickness   = 1
+    dcStroke.Transparency = 0.5
+
+    dcBtn.MouseEnter:Connect(function()
+        tween(dcBtn, { BackgroundColor3 = Color3.fromRGB(68, 70, 130) }, 0.15)
+        tween(dcStroke, { Transparency = 0.1 }, 0.15)
+    end)
+    dcBtn.MouseLeave:Connect(function()
+        tween(dcBtn, { BackgroundColor3 = Color3.fromRGB(50, 52, 100) }, 0.15)
+        tween(dcStroke, { Transparency = 0.5 }, 0.15)
+    end)
+
+    local dcCooldown = false
+    dcBtn.MouseButton1Click:Connect(function()
+        if dcCooldown then return end
+        local opened = false
+        pcall(function() syn.open_url(DISCORD_LINK); opened = true end)
+        if not opened then pcall(function() open_url(DISCORD_LINK); opened = true end) end
+        if not opened then pcall(function() setclipboard(DISCORD_LINK) end) end
+
+        dcCooldown = true
+        local prev = dcBtn.Text
+        dcBtn.Text = opened and "Membuka..." or "Link disalin!"
+        task.delay(2.2, function()
+            if dcBtn.Parent then
+                dcBtn.Text = prev
+                dcCooldown = false
+            end
+        end)
+    end)
+
+    -- Protected badge
+    local badge = Instance.new("TextLabel", leftPanel)
+    badge.Size                  = UDim2.new(1, -10, 0, 14)
+    badge.Position              = UDim2.new(0, 5, 1, -14)
+    badge.BackgroundTransparency = 1
+    badge.Text                  = "● Protected"
+    badge.TextColor3            = Color3.fromRGB(40, 180, 90)
+    badge.TextSize              = 9
+    badge.Font                  = Enum.Font.Gotham
+    badge.TextXAlignment        = Enum.TextXAlignment.Center
+    badge.ZIndex                = 5
+
+    -- ════════════════════════════════════════════════════════════════════════
+    -- RIGHT PANEL  (starts at LP+1, fills rest)
+    -- ════════════════════════════════════════════════════════════════════════
+    local RP_X = LP + 18
+
+    -- Title
+    local title = Instance.new("TextLabel", card)
+    title.Size                  = UDim2.new(0, CW - RP_X - 18, 0, 22)
+    title.Position              = UDim2.new(0, RP_X, 0, 22)
+    title.BackgroundTransparency = 1
+    title.Text                  = "Aktivasi License"
+    title.TextColor3            = Color3.fromRGB(220, 232, 255)
+    title.TextSize              = 16
+    title.Font                  = Enum.Font.GothamBold
+    title.TextXAlignment        = Enum.TextXAlignment.Left
+    title.ZIndex                = 4
+
+    local subtitle = Instance.new("TextLabel", card)
+    subtitle.Size                  = UDim2.new(0, CW - RP_X - 18, 0, 16)
+    subtitle.Position              = UDim2.new(0, RP_X, 0, 46)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text                  = "Masukkan license key kamu untuk melanjutkan"
+    subtitle.TextColor3            = Color3.fromRGB(70, 85, 115)
+    subtitle.TextSize              = 11
+    subtitle.Font                  = Enum.Font.Gotham
+    subtitle.TextXAlignment        = Enum.TextXAlignment.Left
+    subtitle.ZIndex                = 4
+
+    -- Thin accent underline below title area
+    local titleLine = Instance.new("Frame", card)
+    titleLine.Size             = UDim2.new(0, CW - RP_X - 18, 0, 1)
+    titleLine.Position         = UDim2.new(0, RP_X, 0, 70)
+    titleLine.BackgroundColor3 = Color3.fromRGB(25, 32, 55)
+    titleLine.BorderSizePixel  = 0
+    titleLine.ZIndex           = 4
+
+    -- ── Input field ───────────────────────────────────────────────────────────
+    local inputWrap = Instance.new("Frame", card)
+    inputWrap.Size             = UDim2.new(0, CW - RP_X - 18, 0, 42)
+    inputWrap.Position         = UDim2.new(0, RP_X, 0, 82)
+    inputWrap.BackgroundColor3 = Color3.fromRGB(15, 18, 30)
+    inputWrap.BorderSizePixel  = 0
+    inputWrap.ZIndex           = 4
+    Instance.new("UICorner", inputWrap).CornerRadius = UDim.new(0, 10)
+
+    local inputStroke = Instance.new("UIStroke", inputWrap)
+    inputStroke.Color       = Color3.fromRGB(30, 40, 65)
+    inputStroke.Thickness   = 1.2
+
+    local input = Instance.new("TextBox", inputWrap)
+    input.Size                  = UDim2.new(1, -100, 1, 0)
+    input.Position              = UDim2.new(0, 14, 0, 0)
+    input.BackgroundTransparency = 1
+    input.TextColor3            = Color3.fromRGB(210, 225, 255)
+    input.PlaceholderText       = "XXXX-XXXX-XXXX-XXXX"
+    input.PlaceholderColor3     = Color3.fromRGB(45, 55, 80)
+    input.Text                  = ""
+    input.TextSize              = 13
+    input.Font                  = Enum.Font.GothamMedium
+    input.ClearTextOnFocus      = false
+    input.ZIndex                = 5
+
+    local pasteBtn = Instance.new("TextButton", inputWrap)
+    pasteBtn.Size             = UDim2.new(0, 52, 0, 26)
+    pasteBtn.Position         = UDim2.new(1, -58, 0.5, -13)
+    pasteBtn.BackgroundColor3 = Color3.fromRGB(22, 40, 72)
+    pasteBtn.TextColor3       = Color3.fromRGB(80, 160, 255)
+    pasteBtn.Text             = "PASTE"
+    pasteBtn.TextSize         = 9
+    pasteBtn.Font             = Enum.Font.GothamBold
+    pasteBtn.BorderSizePixel  = 0
+    pasteBtn.ZIndex           = 6
+    Instance.new("UICorner", pasteBtn).CornerRadius = UDim.new(0, 6)
+
+    pasteBtn.MouseButton1Click:Connect(function()
+        local clip = nil
+        local attempts = {
+            function() return getclipboard() end,
+            function() return syn.getclipboard() end,
+            function() return clua.getclipboard() end,
+            function() return Clipboard.get() end,
+        }
+        for _, fn in ipairs(attempts) do
+            local ok, result = pcall(fn)
+            if ok and type(result) == "string" and result:match("%S") then
+                clip = result
+                break
+            end
+        end
+
+        if clip then
+            input.Text = clip:gsub("%s+", "")
+            pasteBtn.Text = "✓"
+            pasteBtn.TextColor3 = Color3.fromRGB(60, 220, 120)
+            task.delay(1.2, function()
+                if pasteBtn.Parent then
+                    pasteBtn.Text = "PASTE"
+                    pasteBtn.TextColor3 = Color3.fromRGB(80, 160, 255)
+                end
+            end)
+        else
+            input:CaptureFocus()
+        end
+    end)
+
+    input.Focused:Connect(function()
+        tween(inputStroke, { Color = Color3.fromRGB(55, 140, 255), Thickness = 1.5 }, 0.2)
+    end)
+    input.FocusLost:Connect(function()
+        tween(inputStroke, { Color = Color3.fromRGB(30, 40, 65), Thickness = 1.2 }, 0.2)
+    end)
+
+    -- ── Status ────────────────────────────────────────────────────────────────
+    local status = Instance.new("TextLabel", card)
+    status.Size                  = UDim2.new(0, CW - RP_X - 18, 0, 16)
+    status.Position              = UDim2.new(0, RP_X, 0, 130)
+    status.BackgroundTransparency = 1
+    status.Text                  = ""
+    status.TextColor3            = Color3.fromRGB(255, 75, 75)
+    status.TextSize              = 11
+    status.Font                  = Enum.Font.Gotham
+    status.TextXAlignment        = Enum.TextXAlignment.Left
+    status.ZIndex                = 4
+
+    -- ── Activate button ───────────────────────────────────────────────────────
+    local btnFrame = Instance.new("Frame", card)
+    btnFrame.Size             = UDim2.new(0, CW - RP_X - 18, 0, 40)
+    btnFrame.Position         = UDim2.new(0, RP_X, 0, 152)
+    btnFrame.BackgroundColor3 = Color3.fromRGB(25, 90, 200)
+    btnFrame.BorderSizePixel  = 0
+    btnFrame.ZIndex           = 4
+    Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 10)
+
+    local btnGrad = Instance.new("UIGradient", btnFrame)
+    btnGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(20, 85, 210)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(110, 50, 230)),
+    })
+    btnGrad.Rotation = 90
+
+    local btn = Instance.new("TextButton", btnFrame)
+    btn.Size                  = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.TextColor3            = Color3.fromRGB(255, 255, 255)
+    btn.Text                  = "AKTIVASI  →"
+    btn.TextSize              = 13
+    btn.Font                  = Enum.Font.GothamBold
+    btn.ZIndex                = 5
+
+    btn.MouseEnter:Connect(function()
+        tween(btnFrame, { BackgroundColor3 = Color3.fromRGB(45, 120, 255) }, 0.15)
+    end)
+    btn.MouseLeave:Connect(function()
+        tween(btnFrame, { BackgroundColor3 = Color3.fromRGB(25, 90, 200) }, 0.15)
+    end)
+
+    -- Footer right-aligned
+    local footer = Instance.new("TextLabel", card)
+    footer.Size                  = UDim2.new(0, CW - RP_X - 18, 0, 14)
+    footer.Position              = UDim2.new(0, RP_X, 0, 198)
+    footer.BackgroundTransparency = 1
+    footer.Text                  = "XiFil Hub  •  Secure"
+    footer.TextColor3            = Color3.fromRGB(35, 45, 68)
+    footer.TextSize              = 9
+    footer.Font                  = Enum.Font.Gotham
+    footer.TextXAlignment        = Enum.TextXAlignment.Right
+    footer.ZIndex                = 4
+
+    -- ── Loading dots ─────────────────────────────────────────────────────────
+    local checking = false
+    local function setLoading(state)
+        checking = state
+        if state then
+            btn.Active = false
+            tween(btnFrame, { BackgroundColor3 = Color3.fromRGB(18, 35, 70) }, 0.2)
+            task.spawn(function()
+                local dots = {".", "..", "..."}
+                local i = 1
+                while checking do
+                    btn.Text = "Memeriksa" .. dots[i]
+                    i = (i % 3) + 1
+                    task.wait(0.4)
+                end
+            end)
+        else
+            checking = false
+            btn.Active = true
+            btn.Text   = "AKTIVASI  →"
+            tween(btnFrame, { BackgroundColor3 = Color3.fromRGB(25, 90, 200) }, 0.2)
+        end
+    end
+
+    -- ── Success animation — slide up smooth ──────────────────────────────────
+    local function playSuccess(msg, onDone)
+        status.TextColor3 = Color3.fromRGB(50, 220, 120)
+        status.Text       = "✓  " .. msg
+        btnFrame.BackgroundColor3 = Color3.fromRGB(15, 155, 70)
+        btnGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(12, 155, 65)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 195, 95)),
+        })
+        btn.Text = "✓  KEY VALID"
+        tween(stroke, { Color = Color3.fromRGB(30, 220, 110), Transparency = 0 }, 0.3)
+
+        task.wait(0.7)
+
+        -- Slide card up + fade out simultaneously (smooth Quart easing)
+        local slideInfo = TweenInfo.new(0.55, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+        local slideUp = TweenService:Create(card, slideInfo, {
+            Position              = UDim2.new(0.5, -CW/2, 0.5, -CH/2 - 120),
+            BackgroundTransparency = 1,
+        })
+        local fadeStroke = TweenService:Create(stroke, slideInfo, { Transparency = 1 })
+        local fadeShadow = TweenService:Create(shadow, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
+        local fadeBg     = TweenService:Create(backdrop, TweenInfo.new(0.55, Enum.EasingStyle.Quart, Enum.EasingDirection.In), { BackgroundTransparency = 1 })
+
+        slideUp:Play()
+        fadeStroke:Play()
+        fadeShadow:Play()
+        fadeBg:Play()
+
+        task.wait(0.6)
+        gui:Destroy()
+        onDone()
+    end
+
+    -- ── Activate click ────────────────────────────────────────────────────────
+    btn.MouseButton1Click:Connect(function()
+        if checking then return end
+        local key = input.Text:gsub("%s+", "")
+        if #key < 10 then
+            status.TextColor3 = Color3.fromRGB(255, 75, 75)
+            status.Text       = "⚠  Key terlalu pendek."
+            tween(inputStroke, { Color = Color3.fromRGB(210, 50, 50) }, 0.15)
+            task.delay(0.7, function()
+                tween(inputStroke, { Color = Color3.fromRGB(30, 40, 65) }, 0.3)
+            end)
+            return
+        end
+
+        status.Text = ""
+        setLoading(true)
+
+        local hwid = getHWID()
+        local valid, msg = checkLicense(key, hwid)
+
+        if valid then
+            saveKey(key)
+            setLoading(false)
+            playSuccess(msg, function() callback(key, hwid) end)
+        else
+            deleteKey()
+            setLoading(false)
+            status.TextColor3 = Color3.fromRGB(255, 75, 75)
+            status.Text       = "✕  " .. msg
+
+            local ox = -CW/2
+            tween(card, { Position = UDim2.new(0.5, ox + 9,  0.5, -CH/2) }, 0.06)
+            task.wait(0.06)
+            tween(card, { Position = UDim2.new(0.5, ox - 9,  0.5, -CH/2) }, 0.06)
+            task.wait(0.06)
+            tween(card, { Position = UDim2.new(0.5, ox + 4,  0.5, -CH/2) }, 0.05)
+            task.wait(0.05)
+            tween(card, { Position = UDim2.new(0.5, ox,      0.5, -CH/2) }, 0.05)
+
+            tween(inputStroke, { Color = Color3.fromRGB(200, 45, 45) }, 0.15)
+            task.delay(1.2, function()
+                if card.Parent then
+                    tween(inputStroke, { Color = Color3.fromRGB(30, 40, 65) }, 0.4)
+                end
+            end)
+        end
+    end)
+end
+
+--------------------------------------------------------------------------------
+--// ENTRY POINT
+--------------------------------------------------------------------------------
+local function startWithDRM(mainScript)
+    local hwid = getHWID()
+    local savedKey = readKey()
+
+    if savedKey then
+        local valid, msg = checkLicense(savedKey, hwid)
+        if valid then
+            mainScript(savedKey, hwid)
+            return
+        else
+            deleteKey()
+        end
+    end
+
+    promptKey(function(key, hwidUsed)
+        mainScript(key, hwidUsed)
+    end)
+end
+
+--------------------------------------------------------------------------------
+--//  TARUH SCRIPT GAME KAMU DI SINI
+--------------------------------------------------------------------------------
+startWithDRM(function(key, hwid)
+    -- Script game kamu di sini
+    -- Contoh:
+    -- print("Key valid:", key)
+    
+    --------------------------------------------------------------------------------
+--// XIFIL HUB — MERGED v4.0
+--// Logika penuh REFACTORED V3 + GUI Premium UPGRADED v4.0
+--// (Translate + Premium FX + Intro Anim + Window Controls + Sidebar Tab)
+--
+-- STRUKTUR FILE:
+--  [S01] SERVICES & REMOTES
+--  [S02] ENGINE CONFIG & KONSTANTA
+--  [S03] MAID
+--  [S04] NOTIFICATION ENGINE
+--  [S05] CONFIG SYSTEM
+--  [S06] COMBAT ENGINE & HELPER POSISI
+--  [S07] NAVIGATION ENGINE
+--  [S08] FARM LOOP
+--  [S09] BACKGROUND LOOPS
+--  [S10] TRANSLATE SYSTEM
+--  [S11] VISUAL CONFIG & THEMES
+--  [S12] DRAGGABLE & RESIZE
+--  [S13] UI COMPONENT BUILDER
+--  [S14] MAIN WINDOW & WINDOW CONTROLS
+--  [S15] TAB SYSTEM
+--  [S16] BACKGROUND EFFECTS
+--  [S17] TAB 1 — MAIN FARM
+--  [S18] TAB 2 — VECTOR CONFIG
+--  [S19] TAB 3 — PROFILE
+--  [S20] TAB 4 — SELL
+--  [S21] TAB 5 — ROOM HUB
+--  [S22] TAB 6 — AUTO BUY
+--  [S23] TAB 7 — FORGE & UTILITIES
+--  [S24] TAB 8 — TAMPILAN
+--  [S25] TAB 9 — FONT & BENTUK
+--  [S26] TAB 10 — EFEK & ANIMASI
+--  [S27] SYNC ALL VISUAL UI
+--  [S28] FLOATING TOGGLE BUTTON
+--  [S29] INTRO ANIMATION
+--  [S30] RGB RAINBOW LOOP
+--  [S31] INISIALISASI
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- [S00] ANTI-DUPLICATE EXECUTION GUARD
+--------------------------------------------------------------------------------
+if getgenv().XiFilHub_Executed then
+    -- Panggil notifikasi custom dari eksekusi sebelumnya (jika ada)
+    if getgenv().XiFil_CustomNotify then
+        getgenv().XiFil_CustomNotify("⚠️ XIFIL HUB", "Script sudah berjalan!", 4)
+    end
+    return -- Menghentikan eksekusi skrip baru agar tidak dobel
+end
+getgenv().XiFilHub_Executed = true
+
+--------------------------------------------------------------------------------
+-- [S01] SERVICES & REMOTES
+--------------------------------------------------------------------------------
+local Services = setmetatable({}, {
+    __index = function(self, key)
+        local s = game:GetService(key)
+        if s then self[key] = s end; return s
+    end
+})
+
+local LocalPlayer  = Services.Players.LocalPlayer
+local Workspace    = Services.Workspace
+local TweenService = Services.TweenService
+
+local PlayerActionRE = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("PlayerActionRE")
+local GameRoundRE    = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameRoundRE")
+local EquipmentRE    = Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Gameplay"):WaitForChild("EquipmentSystem"):WaitForChild("EquipmentRE")
+local ForgeRF        = Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Features"):WaitForChild("ForgeSystem"):WaitForChild("ForgeRF")
+local MaterialRE     = Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Gameplay"):WaitForChild("EquipmentSystem"):WaitForChild("MaterialUtil"):WaitForChild("RemoteEvent")
+local WorldPlaceRE   = Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Gameplay"):WaitForChild("WorldPlace"):WaitForChild("WorldUtil"):WaitForChild("RemoteEvent")
+local GameMatchRE    = Services.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameMatchRE")
+
+
+--------------------------------------------------------------------------------
+-- [S02] ENGINE CONFIG & KONSTANTA
+--------------------------------------------------------------------------------
+
+local WORLD_NAMES = { "Starless Forest", "Frozen Valley", "Oathlost Castle" }
+local WORLD_INDEX = { ["Starless Forest"]=1, ["Frozen Valley"]=2, ["Oathlost Castle"]=3 }
+
+local POSITION_MODES = {
+    "Orbit Atas", "Orbit Bawah", "Orbit Samping",
+    "Diam Atas",  "Diam Bawah",  "Depan Target",
+    "Belakang Target", "Acak",
+}
+
+local ROOM_WORLD_DISPLAY = {
+    "Starless Forest", "Frozen Valley", "Oathlost Castle",
+    "Cave of Crystal", "Cave of Runes", "Abandoned Courtyard",
+}
+local ROOM_WORLD_KEY = {
+    ["Starless Forest"]     = "World1",
+    ["Frozen Valley"]       = "World2",
+    ["Oathlost Castle"]     = "World3",
+    ["Cave of Crystal"]     = "Cave1",
+    ["Cave of Runes"]       = "Cave2",
+    ["Abandoned Courtyard"] = "Cave3",
+}
+local function isCaveWorld(displayName)
+    return displayName == "Cave of Crystal"
+        or displayName == "Cave of Runes"
+        or displayName == "Abandoned Courtyard"
+end
+
+local MODE_NAMES = {
+    [1]="Trial", [2]="Challenge", [3]="Penitent", [4]="Torment", [5]="Inferno",
+    [6]="Trial", [7]="Challenge", [8]="Penitent", [9]="Torment",[10]="Inferno",
+}
+local function getModeLabel(n) return n.." - "..(MODE_NAMES[n] or tostring(n)) end
+
+local EngineConfig = {
+    AutoFarmActive    = false,
+    FarmTargetMonster = false,
+    FarmTargetChest   = false,
+    FarmTargetEgg     = false,
+    AutoAttackOnly    = false,
+    AutoReplayActive  = false,
+    SelectedWorld     = "Starless Forest",
+    FarmMethod   = "CFrame",
+    FarmPosition = "Orbit Atas",
+    LerpAlpha    = 0.3,
+    StandHeight   = 20,
+    BossHeight    = 25,
+    OrbitRadius   = 12,
+    OrbitSpeed    = 5,
+    CFrameDelay   = 0.001,
+    HitMultiplier = 1,
+    IsLockDelay   = false,
+    AutoSkillActive    = false,
+    SkillActive1       = true,
+    SkillActive2       = true,
+    SkillActiveU       = true,
+    SkillCooldownDelay = 0.5,
+    AutoWeaponSwitchActive = false,
+    SelectedNormalNpcId = nil,
+    SelectedBossNpcId   = nil,
+    SellCategory       = "All",
+    AutoSellStaticList = {},
+    AutoBuyActive     = false,
+    AutoBuyTargetList = {},
+    RoomWorldDisplay = "Starless Forest",
+    RoomModeType     = "Normal",
+    RoomMode         = 1,
+    RoomPlayers      = 4,
+    RoomTarget       = "Room1",
+    ForgeQTEBase          = 1,
+    ForgeQTEMultiplier    = 1,
+    ForgeFinishBase       = 1,
+    ForgeFinishMultiplier = 1,
+    ForgeResultBase       = 1,
+    ForgeResultMultiplier = 1,
+    AntiAFKActive    = false,
+    AntiPausedActive = false,
+    AutoExecuteOnRejoin  = false,
+}
+
+local GameLists = { NormalNPCs = {"None"}, BossNPCs = {"None"} }
+
+
+--------------------------------------------------------------------------------
+-- [S03] MAID
+--------------------------------------------------------------------------------
+local Maid = {}; Maid.__index = Maid
+function Maid.new() return setmetatable({tasks={}}, Maid) end
+function Maid:GiveTask(t) table.insert(self.tasks, t); return t end
+function Maid:DoCleaning()
+    for _, item in ipairs(self.tasks) do
+        if type(item)=="function" then item()
+        elseif typeof(item)=="RBXScriptConnection" then item:Disconnect()
+        elseif type(item)=="table" and item.Destroy then item:Destroy() end
+    end
+    table.clear(self.tasks)
+end
+local RuntimeMaid = Maid.new()
+
+
+--------------------------------------------------------------------------------
+-- [S04] NOTIFICATION ENGINE
+--------------------------------------------------------------------------------
+local NotifGui = Instance.new("ScreenGui")
+NotifGui.Name="XiFil_Notif"; NotifGui.Parent=LocalPlayer:WaitForChild("PlayerGui")
+NotifGui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; NotifGui.ResetOnSpawn=false
+RuntimeMaid:GiveTask(NotifGui)
+
+local NC = Instance.new("Frame")
+NC.Name="Container"; NC.Parent=NotifGui; NC.BackgroundTransparency=1
+NC.Size=UDim2.new(0,260,1,-120); NC.Position=UDim2.new(1,-280,0,0); NC.ZIndex=99999
+local NL = Instance.new("UIListLayout",NC)
+NL.SortOrder=Enum.SortOrder.LayoutOrder; NL.Padding=UDim.new(0,10)
+NL.VerticalAlignment=Enum.VerticalAlignment.Bottom; NL.HorizontalAlignment=Enum.HorizontalAlignment.Right
+
+local function CustomNotify(title, text, duration)
+    duration = duration or 3
+    local W = Instance.new("Frame"); W.Parent=NC; W.BackgroundTransparency=1; W.Size=UDim2.new(0,260,0,60)
+    local NF = Instance.new("Frame"); NF.Parent=W; NF.BackgroundColor3=Color3.fromRGB(20,20,27)
+    NF.Size=UDim2.new(1,0,1,0); NF.Position=UDim2.new(1,50,0,0); NF.BackgroundTransparency=1
+    Instance.new("UICorner",NF).CornerRadius=UDim.new(0,6)
+    local Stroke=Instance.new("UIStroke",NF); Stroke.Color=Color3.fromRGB(96,205,255); Stroke.Thickness=1.2; Stroke.Transparency=1
+    local Accent=Instance.new("Frame",NF); Accent.BackgroundColor3=Color3.fromRGB(96,205,255)
+    Accent.Size=UDim2.new(0,3,0,0); Accent.Position=UDim2.new(0,12,0.5,0); Accent.AnchorPoint=Vector2.new(0,0.5)
+    Accent.BackgroundTransparency=1; Instance.new("UICorner",Accent).CornerRadius=UDim.new(1,0)
+    local TL=Instance.new("TextLabel",NF); TL.BackgroundTransparency=1; TL.Size=UDim2.new(1,-34,0,20); TL.Position=UDim2.new(0,24,0,10)
+    TL.Font=Enum.Font.GothamBold; TL.Text=string.upper(title); TL.TextColor3=Color3.fromRGB(96,205,255); TL.TextSize=12; TL.TextXAlignment=Enum.TextXAlignment.Left; TL.TextTransparency=1
+    local BL=Instance.new("TextLabel",NF); BL.BackgroundTransparency=1; BL.Size=UDim2.new(1,-34,0,20); BL.Position=UDim2.new(0,24,0,30)
+    BL.Font=Enum.Font.Gotham; BL.Text=text; BL.TextColor3=Color3.fromRGB(200,200,200); BL.TextSize=11; BL.TextXAlignment=Enum.TextXAlignment.Left; BL.TextTransparency=1
+    local ti=TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)
+    TweenService:Create(NF,ti,{Position=UDim2.new(0,0,0,0),BackgroundTransparency=0.1}):Play()
+    TweenService:Create(Stroke,ti,{Transparency=0}):Play()
+    TweenService:Create(TL,ti,{TextTransparency=0}):Play()
+    TweenService:Create(BL,ti,{TextTransparency=0}):Play()
+    TweenService:Create(Accent,TweenInfo.new(0.5,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Size=UDim2.new(0,3,1,-24),BackgroundTransparency=0}):Play()
+    task.delay(duration,function()
+        local to=TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.In)
+        TweenService:Create(NF,to,{Position=UDim2.new(1,50,0,0),BackgroundTransparency=1}):Play()
+        TweenService:Create(Stroke,to,{Transparency=1}):Play()
+        TweenService:Create(TL,to,{TextTransparency=1}):Play()
+        TweenService:Create(BL,to,{TextTransparency=1}):Play()
+        TweenService:Create(W,to,{Size=UDim2.new(0,260,0,0)}):Play()
+        task.wait(0.4); W:Destroy()
+    end)
+end
+
+
+--------------------------------------------------------------------------------
+-- [S05] CONFIG SYSTEM
+--------------------------------------------------------------------------------
+local HttpService = Services.HttpService
+local FOLDER_NAME = "XiFilHub_Configs"
+if not isfolder(FOLDER_NAME) then pcall(makefolder,FOLDER_NAME) end
+
+local ConfigSystem = {}
+function ConfigSystem.GetAutoLoadPointer()
+    local p=FOLDER_NAME.."/autoload_pointer.txt"
+    if isfile(p) then local ok,c=pcall(readfile,p); if ok and c then return c end end
+    return "None"
+end
+function ConfigSystem.SaveAutoLoadPointer(n) pcall(writefile,FOLDER_NAME.."/autoload_pointer.txt",tostring(n)) end
+function ConfigSystem.GetConfigList()
+    local list={"None"}; local ok,files=pcall(listfiles,FOLDER_NAME)
+    if ok and files then for _,f in ipairs(files) do
+        local n=f:match("([^\\/]+)%.json$")
+        if n and n~="autoload_pointer" then table.insert(list,n) end
+    end end; return list
+end
+function ConfigSystem.SaveNew(name)
+    if name=="" or name=="None" then return false,"Nama tidak valid!" end
+    local ok,encoded=pcall(HttpService.JSONEncode,HttpService,EngineConfig)
+    if not ok then return false,"Gagal encode." end
+    if pcall(writefile,FOLDER_NAME.."/"..name..".json",encoded) then return true else return false,"I/O Error." end
+end
+function ConfigSystem.OverwriteExisting(name) return ConfigSystem.SaveNew(name) end
+function ConfigSystem.Load(name,callback)
+    if name=="None" then return false end
+    local path=FOLDER_NAME.."/"..name..".json"
+    if isfile(path) then
+        local rok,content=pcall(readfile,path)
+        if rok and content then
+            local dok,data=pcall(HttpService.JSONDecode,HttpService,content)
+            if dok and type(data)=="table" then
+                for k,v in pairs(data) do if EngineConfig[k]~=nil then EngineConfig[k]=v end end
+                if callback then callback() end; return true
+            end
+        end
+    end; return false
+end
+function ConfigSystem.Delete(name)
+    if name=="None" then return false end
+    local p=FOLDER_NAME.."/"..name..".json"
+    if isfile(p) then return pcall(delfile,p) end; return false
+end
+function ConfigSystem.ExecuteAutoLoad(callback)
+    local target=ConfigSystem.GetAutoLoadPointer()
+    if target and target~="None" then
+        task.spawn(function()
+            task.wait(0.5)
+            if ConfigSystem.Load(target,callback) then CustomNotify("⚡ AUTOLOAD","Profil: "..target,3) end
+        end)
+    end
+end
+
+
+--------------------------------------------------------------------------------
+-- [S06] COMBAT ENGINE & HELPER POSISI
+--------------------------------------------------------------------------------
+
+-- Hitung CFrame tujuan berdasarkan mode posisi
+local function GetPositionCFrame(targetPos, posMode)
+    local r=EngineConfig.OrbitRadius; local h=EngineConfig.StandHeight
+    local angle=tick()*EngineConfig.OrbitSpeed
+    if posMode=="Orbit Atas" then
+        return CFrame.new(targetPos+Vector3.new(math.cos(angle)*r,h,math.sin(angle)*r),targetPos)
+    elseif posMode=="Orbit Bawah" then
+        return CFrame.new(targetPos+Vector3.new(math.cos(angle)*r,-h,math.sin(angle)*r),targetPos)
+    elseif posMode=="Orbit Samping" then
+        return CFrame.new(targetPos+Vector3.new(math.cos(angle)*r,0,math.sin(angle)*r),targetPos)
+    elseif posMode=="Diam Atas" then
+        return CFrame.new(targetPos+Vector3.new(0,h,0))
+    elseif posMode=="Diam Bawah" then
+        return CFrame.new(targetPos-Vector3.new(0,h,0))
+    elseif posMode=="Depan Target" then
+        return CFrame.new(targetPos+Vector3.new(r,0,0))
+    elseif posMode=="Belakang Target" then
+        return CFrame.new(targetPos+Vector3.new(-r,0,0))
+    elseif posMode=="Acak" then
+        local ra=math.random()*math.pi*2
+        return CFrame.new(targetPos+Vector3.new(math.cos(ra)*r,h,math.sin(ra)*r),targetPos)
+    end
+    return CFrame.new(targetPos+Vector3.new(math.cos(angle)*r,h,math.sin(angle)*r),targetPos)
+end
+
+-- Terapkan gerakan: CFrame langsung atau Lerp
+local function ApplyMovement(hrp, targetCF)
+    hrp.AssemblyLinearVelocity=Vector3.zero; hrp.AssemblyAngularVelocity=Vector3.zero
+    if EngineConfig.FarmMethod=="Lerp" then
+        hrp.CFrame=hrp.CFrame:Lerp(targetCF,math.clamp(EngineConfig.LerpAlpha,0.01,1))
+    else
+        hrp.CFrame=targetCF
+    end
+end
+
+local CombatEngine = {}
+function CombatEngine.ResetPhysics(hrp)
+    hrp.AssemblyLinearVelocity=Vector3.zero; hrp.AssemblyAngularVelocity=Vector3.zero
+end
+function CombatEngine.InterruptableStall(duration,conditionCheck)
+    local elapsed=0
+    while elapsed<duration do
+        if conditionCheck() then return true end
+        elapsed=elapsed+Services.RunService.Heartbeat:Wait()
+    end; return false
+end
+function CombatEngine.GetLevelType(monster)
+    local attr=monster:GetAttribute("LevelType")
+    if attr then return tostring(attr):lower() end
+    local obj=monster:FindFirstChild("LevelType")
+    if obj and (obj:IsA("StringValue") or obj:IsA("IntValue")) then return tostring(obj.Value):lower() end
+    if monster:FindFirstChild("BossTag") or string.lower(monster.Name):find("boss") then return "boss" end
+    return "normal"
+end
+function CombatEngine.GetNpcId(monster)
+    local attr=monster:GetAttribute("NpcId"); if attr then return tostring(attr) end
+    local obj=monster:FindFirstChild("NpcId")
+    if obj and (obj:IsA("StringValue") or obj:IsA("IntValue") or obj:IsA("NumberValue")) then return tostring(obj.Value) end
+    return monster.Name
+end
+function CombatEngine.GetValidChests()
+    local chests={}
+    for _,obj in ipairs(Workspace:GetChildren()) do
+        if obj.Name:find("Chest") then
+            local root=obj:FindFirstChild("Root") or obj:FindFirstChild("Part") or (obj:IsA("Model") and obj.PrimaryPart)
+            if root then table.insert(chests,{Object=obj,Root=root}) end
+        end
+    end; return chests
+end
+function CombatEngine.GetValidMonsters()
+    local ef=Workspace:FindFirstChild("EnemyNpc"); if not ef then return {} end
+    local normal,priority={},{}
+    for _,monster in ipairs(ef:GetChildren()) do
+        local hrp=monster:FindFirstChild("HumanoidRootPart")
+        local hum=monster:FindFirstChildOfClass("Humanoid")
+        if hrp and (not hum or hum.Health>0) then
+            local npcId=CombatEngine.GetNpcId(monster)
+            if (EngineConfig.SelectedNormalNpcId and npcId==EngineConfig.SelectedNormalNpcId)
+            or (EngineConfig.SelectedBossNpcId   and npcId==EngineConfig.SelectedBossNpcId) then
+                table.insert(priority,1,monster)
+            elseif CombatEngine.GetLevelType(monster)=="boss" then
+                table.insert(priority,monster)
+            else
+                table.insert(normal,monster)
+            end
+        end
+    end
+    return #priority>0 and priority or normal
+end
+function CombatEngine.TargetsExistGlobal()
+    return #CombatEngine.GetValidChests()>0 or #CombatEngine.GetValidMonsters()>0
+end
+
+-- Victory UI
+local function isVictoryText(obj)
+    if not obj or not obj:IsA("TextLabel") then return false end
+    if not obj.Visible or obj.AbsoluteSize.X==0 or obj.TextTransparency>=1 then return false end
+    local t=obj.Text:upper()
+    if (obj.Name=="FirstClear" and t:find("FIRST CLEAR")) or (obj.Name=="Text" and t:find("VICTORY")) then
+        local cur=obj.Parent
+        while cur and not cur:IsA("ScreenGui") do
+            if cur:IsA("GuiObject") and not cur.Visible then return false end
+            cur=cur.Parent
+        end
+        local p=obj.Parent
+        if p and (p.Name=="RoundCompleted" or p.Name=="BTN" or p.Name=="Victory") then return true end
+    end; return false
+end
+local function checkVictoryUi()
+    local pGui=LocalPlayer:FindFirstChild("PlayerGui"); if not pGui then return false end
+    for _,desc in ipairs(pGui:GetDescendants()) do if isVictoryText(desc) then return true end end
+    return false
+end
+
+local ToggleControl=nil
+
+local function FireReplayRemote()
+    if not EngineConfig.AutoReplayActive then return end
+    task.wait(1.0)
+    local ok,err=pcall(function() GameRoundRE:FireServer("VotePlayAgain") end)
+    if ok then CustomNotify("🔄 REPLAY","Sinyal dikirim!",3)
+    else CustomNotify("⚠️ REPLAY ERROR","Gagal: "..tostring(err),3) end
+end
+
+local function DisableAutoFarm(reason)
+    if not EngineConfig.AutoFarmActive then return end
+    EngineConfig.AutoFarmActive=false
+    if ToggleControl and ToggleControl.SetValue then ToggleControl:SetValue(false)
+    elseif _G.FarmMonsterToggle and _G.FarmMonsterToggle.SetValue then _G.FarmMonsterToggle:SetValue(false) end
+    CustomNotify("🚨 FARM OFF",reason,4)
+    if reason:find("Victory") then task.spawn(FireReplayRemote) end
+end
+
+local uiConn=LocalPlayer:WaitForChild("PlayerGui").DescendantAdded:Connect(function(desc)
+    task.wait(0.2); if isVictoryText(desc) then DisableAutoFarm("Victory Screen Detected") end
+end)
+RuntimeMaid:GiveTask(uiConn)
+
+
+-------------------------------------------------------------------------------
+-- [S07] NAVIGATION ENGINE (MODERN FRAMEWORK)
+-- Logika navigasi diambil dari MODERN Object-Oriented Framework,
+-- diadaptasi penuh untuk sistem nama world dan toggle XiFil Pro V3.
+-- World 1 = Starless Forest (idx 1), World 2 = Frozen Valley (idx 2), World 3 = Oathlost Castle (idx 3)
+--------------------------------------------------------------------------------
+local Navigation = {}
+
+-- Fungsi ini menggunakan pendekatan deterministik.
+-- Sistem mengutamakan part fisik bernama "Root" yang berada di permukaan tanah.
+-- Jika tidak ditemukan, fallback aman menggunakan GetPivot() dijalankan.
+function Navigation.GetPortalRootCFrame(portalInstance)
+    if not portalInstance then return nil end
+
+    -- Mencari komponen fisik detektor ground-level secara langsung
+    local root = portalInstance:FindFirstChild("Root")
+    if root and root:IsA("BasePart") then
+        return root.CFrame
+    end
+
+    -- Fallback aman untuk mempertahankan kompatibilitas model umum
+    if portalInstance:IsA("Model") then
+        return portalInstance.PrimaryPart and portalInstance.PrimaryPart.CFrame or portalInstance:GetPivot()
+    elseif portalInstance:IsA("BasePart") then
+        return portalInstance.CFrame
+    end
+    return nil
+end
+
+-- Menambahkan penanganan aman terhadap parameter worldIdx.
+-- Menerapkan perbandingan string secara ketat (==) pada World 1 & 2 untuk mencegah salah target
+-- ke objek dekoratif langit, serta mempertahankan pencocokan pola khusus untuk World 3.
+function Navigation.GetSingleClosestPortal(portalName, myPosition, worldIdx)
+    local roundDoor = Workspace:FindFirstChild("RoundDoor")
+    if not roundDoor then return nil end
+
+    local closestPortalRoot = nil
+    local shortestDistance = math.huge
+    local children = roundDoor:GetChildren()
+
+    -- Penapisan aman untuk mengantisipasi nilai parameter kosong (nil)
+    local activeIdx = worldIdx or (WORLD_INDEX[EngineConfig.SelectedWorld] or 1)
+
+    for i = 1, #children do
+        local obj = children[i]
+        local isMatch = false
+
+        if activeIdx == 3 then
+            -- Mempertahankan pola penamaan dinamis untuk World 3 (Oathlost Castle)
+            if string.match(obj.Name, "^Portal%d+_%d+$") or string.match(obj.Name, "^%d+_%d+$") then
+                isMatch = true
+            end
+        else
+            -- Menggunakan kesetaraan ketat untuk World 1 dan World 2 demi keamanan spasial
+            if obj.Name:lower() == portalName:lower() then
+                isMatch = true
+            end
+        end
+
+        if isMatch then
+            local cf = Navigation.GetPortalRootCFrame(obj)
+            if cf then
+                local distance = (myPosition - cf.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPortalRoot = cf
+                end
+            end
+        end
+    end
+    return closestPortalRoot
+end
+
+function Navigation.GetClosestObject(folderName, objectName, myPosition)
+    local folder = Workspace:FindFirstChild(folderName) or (folderName == "Workspace" and Workspace)
+    if not folder then return nil end
+
+    local closest = nil
+    local shortestDistance = math.huge
+    local children = folder:GetChildren()
+
+    for i = 1, #children do
+        local obj = children[i]
+        if obj.Name == objectName or obj.Name:lower():find(objectName:lower()) then
+            local cf = obj:IsA("Model") and obj:GetPivot() or (obj:IsA("BasePart") and obj.CFrame)
+            if cf then
+                local distance = (myPosition - cf.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closest = obj
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Cek: apakah ada target aktif sekarang? (berdasarkan target yang dipilih)
+local function anyActiveTargetExists()
+    if not EngineConfig.AutoFarmActive then return false end
+    if EngineConfig.FarmTargetChest and #CombatEngine.GetValidChests()>0 then return true end
+    if EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then return true end
+    if EngineConfig.FarmTargetMonster and #CombatEngine.GetValidMonsters()>0 then return true end
+    return false
+end
+
+-- ── World 1 (Starless Forest): orbit 3 tier 50/150/250, lalu cari portal, lalu idle ──
+function Navigation.SearchWorld1(myHRP, myHum)
+    -- [INSTANT CHECK] Jika saat dipanggil ternyata world sudah berubah, langsung batalkan!
+    if WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return end
+
+    myHum.PlatformStand = true
+    print("[SYSTEM W1] Room vacant! Searching fallback nodes...")
+
+    local door = Navigation.GetClosestObject("RoundDoor", "Door", myHRP.Position)
+    if door then
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = door:IsA("Model") and door:GetPivot() or door.CFrame
+
+        local interrupted = CombatEngine.InterruptableStall(0.5, function()
+            -- Interrupsi ditambahkan pengecekan SelectedWorld
+            return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1
+        end)
+        if interrupted or anyActiveTargetExists() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+            myHum.PlatformStand = false; return
+        end
+    end
+
+    local centerPosition = myHRP.Position
+    local steps = 50
+    local orbitTiers = {50, 150, 250}
+
+    for tierIndex, currentRadius in ipairs(orbitTiers) do
+        if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
+        print("[SYSTEM W1] Executing Orbit Tier " .. tierIndex .. " with Radius: " .. currentRadius)
+
+        local lastOrbitCFrame = nil
+        for i = 1, steps do
+            -- Interrupsi instan di dalam loop pergerakan derajat orbit
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
+
+            local angle = (i / steps) * (math.pi * 2)
+            local targetPos = centerPosition + Vector3.new(math.cos(angle) * currentRadius, 0, math.sin(angle) * currentRadius)
+
+            CombatEngine.ResetPhysics(myHRP)
+            lastOrbitCFrame = CFrame.new(targetPos, centerPosition)
+            myHRP.CFrame = lastOrbitCFrame
+            Services.RunService.Heartbeat:Wait()
+        end
+
+        if lastOrbitCFrame then
+            local orbitStalled = CombatEngine.InterruptableStall(2, function()
+                if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+                CombatEngine.ResetPhysics(myHRP)
+                myHRP.CFrame = lastOrbitCFrame
+            end)
+            if orbitStalled or anyActiveTargetExists() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then break end
+        end
+    end
+
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+        myHum.PlatformStand = false; return
+    end
+
+    local finalCFrame = myHRP.CFrame
+    local isInterrupted = CombatEngine.InterruptableStall(5, function()
+        if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = finalCFrame
+    end)
+    if isInterrupted or anyActiveTargetExists() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+        myHum.PlatformStand = false; return
+    end
+
+    local portal = Navigation.GetClosestObject("RoundDoor", "Portal", myHRP.Position)
+        or Navigation.GetClosestObject("Workspace", "Portal", myHRP.Position)
+    if portal then
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = portal:IsA("Model") and portal:GetPivot() or portal.CFrame
+
+        local portalCFrame = myHRP.CFrame
+        CombatEngine.InterruptableStall(3, function()
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+            CombatEngine.ResetPhysics(myHRP)
+            myHRP.CFrame = portalCFrame
+        end)
+        if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then
+            myHum.PlatformStand = false; return
+        end
+    end
+
+    -- Idle stall 115 detik menunggu respawn
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 1 then
+        local idleCFrame = myHRP.CFrame
+        CombatEngine.InterruptableStall(115, function()
+            if not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 1 then return true end
+            CombatEngine.ResetPhysics(myHRP)
+            myHRP.CFrame = idleCFrame
+        end)
+    end
+    myHum.PlatformStand = false
+end
+
+-- ── World 2 (Frozen Valley): stall → PortalD → Portal → idle ──
+function Navigation.SearchWorld2(myHRP, myHum)
+    if WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2 then return end
+
+    EngineConfig.IsLockDelay = true
+    myHum.PlatformStand = true
+
+    local function globalBreakCondition()
+        return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2
+    end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    local portalDCF = Navigation.GetSingleClosestPortal("PortalD", myHRP.Position, 2)
+    if portalDCF and not globalBreakCondition() then
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = portalDCF
+        task.wait(0.1)
+    end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+    if anyActiveTargetExists() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2 then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    local portalCF = Navigation.GetSingleClosestPortal("Portal", myHRP.Position, 2)
+    if portalCF and not globalBreakCondition() then
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = portalCF
+        task.wait(0.1)
+    end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    EngineConfig.IsLockDelay = false
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 2 then
+        myHum.PlatformStand = false; return
+    end
+
+    -- Idle stall 115 detik
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 2 then
+        EngineConfig.IsLockDelay = true
+        CombatEngine.InterruptableStall(115, function()
+            if globalBreakCondition() then return true end
+            CombatEngine.ResetPhysics(myHRP)
+        end)
+        EngineConfig.IsLockDelay = false
+    end
+    myHum.PlatformStand = false
+end
+
+-- ── World 3 (Oathlost Castle): stall → Portal dinamis → idle ──
+function Navigation.SearchWorld3(myHRP, myHum)
+    if WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3 then return end
+
+    EngineConfig.IsLockDelay = true
+    myHum.PlatformStand = true
+
+    local function globalBreakCondition()
+        return not EngineConfig.AutoFarmActive or anyActiveTargetExists() or checkVictoryUi() or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3
+    end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    local closestPortalCF = Navigation.GetSingleClosestPortal("Portal", myHRP.Position, 3)
+    if closestPortalCF and not globalBreakCondition() then
+        CombatEngine.ResetPhysics(myHRP)
+        myHRP.CFrame = closestPortalCF
+        task.wait(0.1)
+    end
+
+    if CombatEngine.InterruptableStall(3, globalBreakCondition) then EngineConfig.IsLockDelay = false; myHum.PlatformStand = false; return end
+
+    EngineConfig.IsLockDelay = false
+    if anyActiveTargetExists() or not EngineConfig.AutoFarmActive or WORLD_INDEX[EngineConfig.SelectedWorld] ~= 3 then
+        myHum.PlatformStand = false; return
+    end
+
+    -- Idle stall 115 detik
+    if EngineConfig.AutoFarmActive and not anyActiveTargetExists() and WORLD_INDEX[EngineConfig.SelectedWorld] == 3 then
+        EngineConfig.IsLockDelay = true
+        CombatEngine.InterruptableStall(115, function()
+            if globalBreakCondition() then return true end
+            CombatEngine.ResetPhysics(myHRP)
+        end)
+        EngineConfig.IsLockDelay = false
+    end
+    myHum.PlatformStand = false
+end
+
+
+--------------------------------------------------------------------------------
+-- [S08] FARM LOOP
+-- Satu loop terpadu menangani semua prioritas: Chest > Egg > Enemy.
+-- Guard _farmLoopRunning mencegah instance ganda saat toggle dinyalakan ulang.
+--------------------------------------------------------------------------------
+
+-- Loop: Auto Attack Only (fire remote saja, tanpa movement)
+task.spawn(function()
+    while true do
+        task.wait(math.max(EngineConfig.CFrameDelay,0.05))
+        if EngineConfig.AutoAttackOnly then
+            local char=LocalPlayer.Character
+            local hrp=char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                for _=1,EngineConfig.HitMultiplier do
+                    task.defer(function() pcall(function() PlayerActionRE:FireServer("SkillAction","BaseAttack",3,hrp.CFrame) end) end)
+                end
+            end
+        end
+    end
+end)
+
+-- Guard: cegah loop dobel
+local _farmLoopRunning=false
+
+-- Cek apakah loop masih harus berjalan
+local function anyFarmToggleActive()
+    return EngineConfig.AutoFarmActive
+end
+
+--[[
+  SISTEM BARU — 1 Toggle (AutoFarmActive) + pilihan target (Monster/Chest/Egg)
+
+  PRIORITAS (per frame) saat ada target yang dipilih:
+    1. Chest   — jika FarmTargetChest=true DAN ada chest
+    2. Egg     — jika FarmTargetEgg=true DAN ada DragonEgg
+    3. Monster — jika FarmTargetMonster=true DAN ada monster
+    4. Find    — Auto Farm aktif tapi tidak ada satupun target ditemukan → navigasi cari
+
+  ATURAN:
+  · Chest & Egg HANYA aktif jika AutoFarmActive=true.
+  · Find otomatis berjalan saat tidak ada target, selalu.
+  · Jika hanya Monster dipilih → setelah tidak ada monster langsung Find.
+  · Jika Chest/Egg dipilih → Chest > Egg lebih dulu, Monster setelahnya, baru Find.
+]]
+local function startFarmLoop()
+    if _farmLoopRunning then return end
+    _farmLoopRunning=true
+
+    local noTargetTimer=0
+
+    while anyFarmToggleActive() do
+        if checkVictoryUi() then DisableAutoFarm("Victory UI Found"); break end
+
+        local char=LocalPlayer.Character
+        local myHRP=char and char:FindFirstChild("HumanoidRootPart")
+        local myHum=char and char:FindFirstChildOfClass("Humanoid")
+        if not myHRP or not myHum then task.wait(0.1); continue end
+
+        local worldIdx=WORLD_INDEX[EngineConfig.SelectedWorld] or 1
+
+        -- == GUARD World 2 IsLockDelay ==
+        if worldIdx==2 and EngineConfig.IsLockDelay and not anyActiveTargetExists() then
+            CombatEngine.ResetPhysics(myHRP); Services.RunService.Heartbeat:Wait()
+
+        -- ──────────────── PRIORITAS 1: CHEST ────────────────
+        elseif EngineConfig.FarmTargetChest and #CombatEngine.GetValidChests()>0 then
+            noTargetTimer=0; EngineConfig.IsLockDelay=false
+            myHum.PlatformStand=true
+            local chestRoot=CombatEngine.GetValidChests()[1].Root
+            if chestRoot and chestRoot:IsA("BasePart") then
+                local targetCF=GetPositionCFrame(chestRoot.Position,EngineConfig.FarmPosition)
+                ApplyMovement(myHRP,targetCF)
+                local atkCF=chestRoot.CFrame
+                for _=1,EngineConfig.HitMultiplier do
+                    task.defer(function() PlayerActionRE:FireServer("SkillAction","BaseAttack",3,atkCF) end)
+                end
+                task.wait(EngineConfig.CFrameDelay)
+            else Services.RunService.Heartbeat:Wait() end
+
+        -- ──────────────── PRIORITAS 2: EGG ────────────────
+        elseif EngineConfig.FarmTargetEgg and Workspace:FindFirstChild("DragonEgg") then
+            noTargetTimer=0; EngineConfig.IsLockDelay=false
+            local egg=Workspace:FindFirstChild("DragonEgg")
+            local eggPart = egg and egg:FindFirstChild("EggModel") and egg.EggModel:FindFirstChild("Part")
+            -- Reset jika egg hilang (bisa karena diambil player lain)
+            if not eggPart then _G._eggApproached=nil end
+            if eggPart then
+                myHum.PlatformStand=true
+
+                -- Cek per-referensi: egg BERBEDA = pendekatan baru (fix bug multi-egg)
+                if _G._eggApproached ~= eggPart then
+                    _G._eggApproached = eggPart  -- simpan referensi egg ini, bukan boolean
+                    -- ▶ FASE 1: CFrame ke egg, diam 1 detik sambil proximity + attack dikirim
+                    CombatEngine.ResetPhysics(myHRP)
+                    myHRP.CFrame = CFrame.new(eggPart.Position+Vector3.new(0,3,0), eggPart.Position)
+                    local elapsed = 0
+                    while elapsed < 1 do
+                        if not EngineConfig.AutoFarmActive then break end
+                        -- Kirim proximity prompt
+                        pcall(function()
+                            for _,obj in ipairs(egg:GetDescendants()) do
+                                if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
+                            end
+                        end)
+                        -- Kirim auto attack ke egg selama fase approach
+                        pcall(function() PlayerActionRE:FireServer("SkillAction","BaseAttack",3,eggPart.CFrame) end)
+                        task.wait(0.1)
+                        elapsed = elapsed + 0.1
+                    end
+                end
+
+                -- ▶ FASE 2: Orbit (setelah 1 detik approach selesai)
+                local dropCF = GetPositionCFrame(eggPart.Position, EngineConfig.FarmPosition)
+                ApplyMovement(myHRP, dropCF)
+
+                task.wait(EngineConfig.CFrameDelay)
+            else Services.RunService.Heartbeat:Wait() end
+
+        -- ──────────────── PRIORITAS 3: MONSTER ────────────────
+        elseif EngineConfig.FarmTargetMonster and #CombatEngine.GetValidMonsters()>0 then
+            noTargetTimer=0; EngineConfig.IsLockDelay=false
+            myHum.PlatformStand=true
+            local monsters=CombatEngine.GetValidMonsters()
+            local target=monsters[1]
+            local tPart=target and (target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart)
+            local tHum=target and target:FindFirstChildOfClass("Humanoid")
+            if tPart and (not tHum or tHum.Health>0) then
+                local isBoss=CombatEngine.GetLevelType(target)=="boss"
+                local savedH=EngineConfig.StandHeight
+                if isBoss then EngineConfig.StandHeight=EngineConfig.BossHeight end
+                local targetCF=GetPositionCFrame(tPart.Position,EngineConfig.FarmPosition)
+                EngineConfig.StandHeight=savedH
+                ApplyMovement(myHRP,targetCF)
+                for _=1,EngineConfig.HitMultiplier do
+                    task.defer(function() PlayerActionRE:FireServer("SkillAction","BaseAttack",3,tPart.CFrame) end)
+                end
+                task.wait(EngineConfig.CFrameDelay)
+            else Services.RunService.Heartbeat:Wait() end
+
+        -- ──────────────── TIDAK ADA TARGET → AUTO FIND ────────────────
+        else
+            myHum.PlatformStand=false
+            CombatEngine.ResetPhysics(myHRP)
+            noTargetTimer=noTargetTimer+0.1
+            task.wait(0.1)
+            -- World Search hanya aktif jika FarmTargetMonster ON
+            -- (jika hanya Chest/Egg yang on, tidak perlu cari world baru)
+            if noTargetTimer>=3 and EngineConfig.FarmTargetMonster then
+                noTargetTimer=0
+                if worldIdx==1 then Navigation.SearchWorld1(myHRP,myHum)
+                elseif worldIdx==2 then Navigation.SearchWorld2(myHRP,myHum)
+                elseif worldIdx==3 then Navigation.SearchWorld3(myHRP,myHum)
+                end
+            elseif noTargetTimer>=3 then
+                noTargetTimer=0  -- reset timer meski tidak search, agar tidak numpuk
+            end
+        end
+    end
+
+    -- Cleanup saat Auto Farm dimatikan
+    pcall(function()
+        local char=LocalPlayer.Character
+        local myHum=char and char:FindFirstChildOfClass("Humanoid")
+        if myHum then myHum.PlatformStand=false end
+        EngineConfig.IsLockDelay=false
+    end)
+    _G._eggApproached=nil  -- reset agar egg berikutnya di-approach ulang
+    _farmLoopRunning=false
+end
+
+
+--------------------------------------------------------------------------------
+-- [S09] BACKGROUND LOOPS
+--------------------------------------------------------------------------------
+
+-- Loop: Auto Skill (berdasarkan pilihan individual Skill1/Skill2/SkillU)
+task.spawn(function()
+    while true do
+        if EngineConfig.AutoSkillActive then
+            local skills={}
+            if EngineConfig.SkillActive1 then table.insert(skills,"Skill1") end
+            if EngineConfig.SkillActive2 then table.insert(skills,"Skill2") end
+            if EngineConfig.SkillActiveU then table.insert(skills,"SkillU") end
+            for _,skillName in ipairs(skills) do
+                for combo=1,3 do
+                    pcall(function() PlayerActionRE:FireServer("SkillAction",skillName,combo) end)
+                    task.wait(EngineConfig.SkillCooldownDelay)
+                end
+            end
+            task.wait(5)
+        else task.wait(0.5) end
+    end
+end)
+
+-- Loop: Weapon Switcher
+task.spawn(function()
+    while true do
+        if EngineConfig.AutoWeaponSwitchActive then
+            -- Sementara lepas PlatformStand agar server menerima weapon switch
+            local char=LocalPlayer.Character
+            local hum=char and char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand=false end
+            task.wait(0.05)
+            pcall(function() EquipmentRE:FireServer("ChangeWeaponSlot") end)
+            task.wait(0.1)
+            -- Farm loop akan kembalikan PlatformStand=true otomatis di iterasi berikutnya
+            task.wait(3)
+        else task.wait(0.5) end
+    end
+end)
+
+-- [NOTE] Auto Egg sekarang ditangani oleh startFarmLoop() di [S08] dengan prioritas Chest>Egg>Enemy.
+-- Loop terpisah tidak diperlukan lagi.
+
+-- Dapatkan RemoteEvent ConsumableShop (path baru v4.0+)
+local function FindGoldShopRemote()
+    local ok, re = pcall(function()
+        return Services.ReplicatedStorage
+            :WaitForChild("Framework", 3):WaitForChild("Features", 3)
+            :WaitForChild("ConsumableShopSystem", 3):WaitForChild("ConsumableShopUtil", 3)
+            :WaitForChild("RemoteEvent", 3)
+    end)
+    if ok and re then return re end
+    return nil
+end
+
+-- Dapatkan ScrollingFrame toko (ScreenConsumableShop)
+local function FindGoldShopScrollingFrame()
+    local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not pgui then return nil end
+    local mainGui = pgui:FindFirstChild("MainGui")
+    if mainGui then
+        local screen = mainGui:FindFirstChild("ScreenConsumableShop")
+        if screen then
+            local content = screen:FindFirstChild("Content")
+            if content then
+                local sf = content:FindFirstChildWhichIsA("ScrollingFrame")
+                if sf then return sf end
+            end
+        end
+    end
+    return nil
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if EngineConfig.AutoBuyActive then
+            local sf = FindGoldShopScrollingFrame()
+            if sf then
+                for _, item in pairs(sf:GetChildren()) do
+                    if EngineConfig.AutoBuyTargetList[item.Name] then
+                        local stockTXT = item:FindFirstChild("StockTXT", true)
+                        local stok = tonumber(stockTXT and stockTXT.Text:match("%d+")) or 0
+                        if stok >= 1 and stok <= 9 then
+                            local buyBtn = item:FindFirstChild("BuyBTN", true)
+                            if buyBtn then
+                                pcall(function()
+                                    for _, conn in ipairs(getconnections(buyBtn.MouseButton1Down)) do
+                                        conn:Fire()
+                                    end
+                                end)
+                                task.wait(0.4)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--------------------------------------------------------------------------------
+-- [S10] TRANSLATE SYSTEM
+--------------------------------------------------------------------------------
+local LANGUAGES = { "Indonesia", "English" }
+
+
+local LANG_STRINGS = {
+    Indonesia = {
+        tabFarm="🏠 Farm", tabVector="⚙️ Vector", tabProfile="💾 Profil",
+        tabSell="💰 Jual", tabRoom="🚪 Room", tabForge="🔨 Forge",
+        tabAppear="🎨 Tampilan", tabFont="🔤 Font", tabFx="✨ Efek",
+        secTheme="Tema Warna GUI", secTrans="Transparansi",
+        secGesture="Gesture & Open Button", secTabMode="Mode Tab",
+        secLang="Bahasa / Translate", secFont="Font GUI",
+        secToggle="Bentuk Sakelar (Toggle)", secBtnShape="Bentuk Button Dropdown",
+        secAnimStyle="Gaya Animasi Buka/Tutup", secBgFx="Efek Latar & Partikel",
+        -- Nama Tab
+        tabFarm="🌾 Farm",       tabVector="🎯 Vektor",   tabProfile="📋 Profil",
+                tabBuy="🛒 Auto Beli",
+        
+        btnCatGrocery="💰 Toko Grosir",
+        btnCatBond="💎 Toko Bond",
+        btnCatAll="🌐 Semua",
+
+        tabSell="🏪 Jual",       tabRoom="🗺️ Room",       tabForge="⚒️ Tempa",
+        tabAppear="🖌️ Tampilan", tabFont="🔡 Font",       tabFx="🌟 Efek",
+        -- Header Seksi (Game)
+        secWorld="Dunia",
+        secFarmEngine="Kontrol Mesin Farm",
+        secMethodPos="Metode & Posisi Gerakan",
+        secSkillCfg="Konfigurasi Skill",
+        secWeapon="Ganti Senjata",
+        secUtils="Utilitas",
+        secTargetSel="Pilih Target",
+        secDodgeBoss="Hindari Boss",
+        secKinematic="Parameter Sistem Kinematik",
+        secDataProfile="Data Profil",
+        secSystemGuard="Penjaga Sistem",
+        secInventory="Manajemen Inventaris",
+        secMerchant="Sistem Pedagang",
+        secMatchmake="Kontrol Matchmaking",
+        secMatchActions="Aksi Match",
+        secForgeUtil="Utilitas Tempa",
+        secNpcUtil="Akses NPC Utilitas",
+        secGoldShop="Pembeli Toko Emas",
+        -- Header Seksi (Visual)
+        secBgColor="Warna Latar GUI",
+        secTheme="Tema Warna GUI",
+        secTransp="Transparansi",
+        secGesture="Tombol Buka & Gesture",
+        secTabMode="Mode Tab",
+        secLang="Bahasa / Terjemahan",
+        secFont="Font GUI",
+        secToggle="Bentuk Sakelar (Toggle)",
+        secBtnShape="Bentuk Tombol Dropdown",
+        secAnimStyle="Gaya Animasi Buka/Tutup",
+        secBgFx="Efek Latar & Partikel",
+        secInfo="Info",
+        lblTheme="🎨 Tema Warna", lblTransp="🌫️ Mode Transparan",
+        lblEnableAutoBuy="🛒 Aktifkan Multi Auto-Buy",
+        lblLevel="🔆 Level Transparansi", lblGesture="🖐️ Mode Buka GUI",
+        lblTabMode="📑 Orientasi Tab", lblLang="🌐 Bahasa",
+        lblFont="🔤 Pilihan Font", lblToggle="🔘 Bentuk Toggle",
+        lblBtnShape="🟦 Bentuk Button", lblAnimStyle="✨ Animasi",
+        -- Label Kontrol Game
+        lblWorld="🌍 Dunia",
+        lblAutoFarm="🌾 Auto Farm",
+        lblFarmTargets="Target Auto Farm  (aktif saat Auto Farm ON)",
+        lblMethod="Metode",
+        lblPosition="Posisi Farm",
+        lblKillAura="⚡ Kill Aura",
+        lblAutoSkill="🎯 Aktifkan Auto Skill",
+        lblSkillActive="Skill Aktif  (bisa pilih lebih dari 1)",
+        lblWeaponSwitch="🎒 Auto Ganti Senjata (3d)",
+        lblAutoReplay="🔄 Auto Ulangi",
+        lblAutoExec="⚡ Auto Jalankan saat Pindah Server",
+        lblNormalMob="Mob Normal",
+        lblBossMob="Mob Boss",
+        lblOrbitRadius="Radius Orbit",
+        lblHeightNormal="Tinggi Target Normal (Y)",
+        lblHeightBoss="Tinggi Target Boss (Y)",
+        lblOrbitSpeed="Kecepatan Orbit",
+        lblCFrameDelay="Jeda CFrame",
+        lblHitMultiplier="Pengali Hit",
+        lblLerpAlpha="Lerp Alpha (0-1)",
+        lblSkillCooldown="Cooldown Skill (d)",
+        lblSelectedProfile="Profil Dipilih",
+        lblNewProfileName="Nama Profil Baru",
+        lblAntiAFK="🛡️ Anti-AFK",
+        lblAntiPaused="⏳ Nonaktifkan Gameplay Paused",
+        lblSellCategory="Kategori",
+        lblRoomWorld="Dunia",
+        lblModeType="Tipe Mode",
+        lblMode="Mode",
+        lblPlayers="Jumlah Pemain",
+        lblTargetRoom="Target Room",
+        -- Label Kontrol Visual
+        lblBackground="Latar Belakang",
+        lblTheme="🎨 Tema Warna",
+        lblTranspMode="🌫️ Mode Transparan",
+        lblLevel="🔆 Level Transparansi",
+        lblGesture="🖐️ Mode Buka GUI",
+        lblTabMode="📑 Orientasi Tab",
+        lblLang="🌐 Bahasa",
+        lblFont="🔤 Pilihan Font",
+        lblToggle="🔘 Bentuk Toggle",
+        lblBtnShape="🟦 Bentuk Tombol",
+        lblAnimStyle="✨ Gaya Animasi",
+        lblBgFx="🌟 Efek Latar",
+        -- Tombol
+        btnScanMap="🔄 Scan Target Peta",
+        btnDodge20="🎯 Hindari Boss Skill (20)",
+        btnDodge200="🎯 Hindari Boss Skill (200)",
+        btnSaveProfile="➕ Simpan Profil Baru",
+        btnLoadProfile="📂 Muat Profil",
+        btnSetAutoload="⚡ Jadikan Autoload",
+        btnResetAutoload="❌ Reset Autoload",
+        btnOverwriteProfile="🔄 Timpa Profil",
+        btnDeleteProfile="🗑️ Hapus Profil",
+        btnScanInventory="🔄 Scan Inventaris",
+        btnExecuteSell="💰 Jual Sekarang",
+        btnOpenMerchant="🛒 Buka Pedagang",
+        btnCreateRoom="🛠️ Buat Room",
+        btnTPRoom="🚀 TP ke Room",
+        btnLeaveRoom="🚪 Keluar Room",
+        btnScanGoldShop="🔄 Scan Toko ",
+        btnForgeBypass="🚀 Bypass FORGE",
+        btnOpenEnchant="🔮 Buka Enchantment & Rune",
+        btnOpenGrocery="🛒 Buka Toko Bahan",
+        btnOpenPetUpgrade="🐾 Buka Upgrade Pet",
+        btnOpenPetExp="🏕️ Buka Ekspedisi Pet",
+        btnOpenBless="✨ Buka Upgrade Equipment",
+        btnOpenGuide="✨ Buka The Guide",
+        -- Notifikasi & Judul
+        infoText="Partikel & efek berjalan secara real-time.\nUbah tema untuk menyesuaikan warna partikel.",
+        notifyTheme="Tema diubah ke: ", notifyFont="Font diubah ke: ",
+        notifyGest="Mode buka: ", notifyTab="Mode: ",
+        notifyLang="Bahasa: ", notifyLoad="GUI Berhasil Dimuat! v4.0",
+        titleLoad="✦ XIFIL HUB",
+        notifyTheme="Tema diubah ke: ",  notifyFont="Font diubah ke: ",
+        notifyGest="Mode buka: ",        notifyTab="Mode: ",
+        notifyLang="Bahasa: ",           notifyLoad="GUI Berhasil Dimuat! v4.0",
+        titleLoad="✦ XIFIL HUB",
+    },
+    English = {
+        tabFarm="🏠 Farm", tabVector="⚙️ Vector", tabProfile="💾 Profile",
+        tabSell="💰 Sell", tabRoom="🚪 Room", tabForge="🔨 Forge",
+        tabAppear="🎨 Appearance", tabFont="🔤 Font", tabFx="✨ Effects",
+        secTheme="GUI Color Theme", secTrans="Transparency",
+        secGesture="Gesture & Open Button", secTabMode="Tab Mode",
+        secLang="Language / Translate", secFont="GUI Font",
+        secToggle="Toggle Shape", secBtnShape="Dropdown Button Shape",
+        secAnimStyle="Open/Close Animation Style", secBgFx="Background & Particle FX",
+        -- Tab names
+        tabFarm="🌾 Farm",         tabVector="🎯 Vector",     tabProfile="📋 Profile",
+        tabSell="🏪 Sell",           tabBuy="🛒 Auto Buy",
+        lblEnableAutoBuy="🛒 Enable Multi Auto-Buy",
+        btnCatGrocery="💰 Grocery",
+        btnCatBond="💎 Bond Shop",
+        btnCatAll="🌐 All",
+
+      tabRoom="🗺️ Room",         tabForge="⚒️ Forge",
+        tabAppear="🖌️ Appearance", tabFont="🔡 Font",         tabFx="🌟 Effects",
+        -- Section headers (Game)
+        secWorld="World",
+        secFarmEngine="Farm Engine Control",
+        secMethodPos="Method & Movement Position",
+        secSkillCfg="Skill Configuration",
+        secWeapon="Weapon Switcher",
+        secUtils="Utilities",
+        secTargetSel="Target Selector",
+        secDodgeBoss="Dodge Boss",
+        secKinematic="Kinematic System Parameters",
+        secDataProfile="Profile Data",
+        secSystemGuard="System Guard",
+        secInventory="Inventory Management",
+        secMerchant="Merchant System",
+        secMatchmake="Matchmaking Control",
+        secMatchActions="Match Actions",
+        secForgeUtil="Forge Utilities",
+        secNpcUtil="NPC Utility Access",
+        secGoldShop="Gold Shop Auto-Buyer",
+        -- Section headers (Visual)
+        secBgColor="GUI Background Color",
+        secTheme="GUI Color Theme",
+        secTransp="Transparency",
+        secGesture="Gesture & Open Button",
+        secTabMode="Tab Mode",
+        secLang="Language / Translate",
+        secFont="GUI Font",
+        secToggle="Toggle Shape",
+        secBtnShape="Dropdown Button Shape",
+        secAnimStyle="Open/Close Animation Style",
+        secBgFx="Background & Particle FX",
+        secInfo="Info",
+        lblTheme="🎨 Color Theme", lblTransp="🌫️ Transparent Mode",
+        lblLevel="🔆 Transparency Level", lblGesture="🖐️ Open Mode",
+        lblTabMode="📑 Tab Orientation", lblLang="🌐 Language",
+        lblFont="🔤 Font Choice", lblToggle="🔘 Toggle Shape",
+        lblBtnShape="🟦 Button Shape", lblAnimStyle="✨ Animation",
+        -- Control labels (Game)
+        lblWorld="🌍 World",
+        lblAutoFarm="🌾 Auto Farm",
+        lblFarmTargets="Auto Farm Target  (active when Farm ON)",
+        lblMethod="Method",
+        lblPosition="Farm Position",
+        lblKillAura="⚡ Kill Aura",
+        lblAutoSkill="🎯 Enable Auto Skill",
+        lblSkillActive="Active Skills  (can select multiple)",
+        lblWeaponSwitch="🎒 Auto Weapon Switcher (3s)",
+        lblAutoReplay="🔄 Auto Play Again",
+        lblAutoExec="⚡ Auto Exec on Server Hop/Rejoin",
+        lblNormalMob="Normal Mob",
+        lblBossMob="Boss Mob",
+        lblOrbitRadius="Orbit Radius",
+        lblHeightNormal="Height Normal Target (Y)",
+        lblHeightBoss="Height Boss Target (Y)",
+        lblOrbitSpeed="Orbit Speed",
+        lblCFrameDelay="CFrame Delay",
+        lblHitMultiplier="Hit Multiplier",
+        lblLerpAlpha="Lerp Alpha (0-1)",
+        lblSkillCooldown="Skill Cooldown (s)",
+        lblSelectedProfile="Selected Profile",
+        lblNewProfileName="New Profile Name",
+        lblAntiAFK="🛡️ Anti-AFK",
+        lblAntiPaused="⏳ Disable Gameplay Paused",
+        lblSellCategory="Category",
+        lblRoomWorld="World",
+        lblModeType="Mode Type",
+        lblMode="Mode",
+        lblPlayers="Player Count",
+        lblTargetRoom="Target Room",
+        -- Control labels (Visual)
+        lblBackground="Background",
+        lblTheme="🎨 Color Theme",
+        lblTranspMode="🌫️ Transparent Mode",
+        lblLevel="🔆 Transparency Level",
+        lblGesture="🖐️ Open Mode",
+        lblTabMode="📑 Tab Orientation",
+        lblLang="🌐 Language",
+        lblFont="🔤 Font Choice",
+        lblToggle="🔘 Toggle Shape",
+        lblBtnShape="🟦 Button Shape",
+        lblAnimStyle="✨ Animation Style",
+        lblBgFx="🌟 Background FX",
+        -- Buttons
+        btnScanMap="🔄 Scan Map Targets",
+        btnDodge20="🎯 Dodge Boss Skill (20)",
+        btnDodge200="🎯 Dodge Boss Skill (200)",
+        btnSaveProfile="➕ Save New Profile",
+        btnLoadProfile="📂 Load Profile",
+        btnSetAutoload="⚡ Set as Autoload",
+        btnResetAutoload="❌ Reset Autoload",
+        btnOverwriteProfile="🔄 Overwrite Profile",
+        btnDeleteProfile="🗑️ Delete Profile",
+        btnScanInventory="🔄 Scan Inventory",
+        btnExecuteSell="💰 Execute Sell",
+        btnOpenMerchant="🛒 Open Merchant",
+        btnCreateRoom="🛠️ Create Room",
+        btnTPRoom="🚀 TP Room",
+        btnLeaveRoom="🚪 Leave Room",
+        btnScanGoldShop="🔄 Scan Gold Shop",
+        btnForgeBypass="🚀 Bypass FORGE",
+        btnOpenEnchant="🔮 Open Enchantment & Runes",
+        btnOpenGrocery="🛒 Open Grocery",
+        btnOpenPetUpgrade="🐾 Open Pet Upgrade",
+        btnOpenPetExp="🏕️ Open Pet Expedition",
+        btnOpenBless="✨ Open Upgrade Equipment",
+        btnOpenGuide="✨ Open The Guide",
+        -- Notifications & title
+        infoText="Particles & effects run in real-time.\nChange theme to sync particle color.",
+        notifyTheme="Theme changed to: ", notifyFont="Font changed to: ",
+        notifyGest="Open mode: ", notifyTab="Mode: ",
+        notifyLang="Language: ", notifyLoad="GUI Loaded! v4.0",
+        titleLoad="✦ XIFIL HUB",
+        notifyTheme="Theme changed to: ",  notifyFont="Font changed to: ",
+        notifyGest="Open mode: ",          notifyTab="Mode: ",
+        notifyLang="Language: ",           notifyLoad="GUI Loaded! v4.0",
+        titleLoad="✦ XIFIL HUB",
+    },
+}
+
+local CurrentLang = "Indonesia"
+local TranslationRegistry = {}
+
+local function T(key)
+    local tbl = LANG_STRINGS[CurrentLang] or LANG_STRINGS["Indonesia"]
+    return tbl[key] or key
+end
+
+local function RegisterTranslation(key, obj, prop)
+    if not TranslationRegistry[key] then TranslationRegistry[key] = {} end
+    table.insert(TranslationRegistry[key], { obj = obj, prop = prop })
+end
+
+local function RegisterTranslationFn(key, fn)
+    if not TranslationRegistry[key] then TranslationRegistry[key] = {} end
+    table.insert(TranslationRegistry[key], { custom = fn })
+end
+
+local function ApplyTranslations()
+    local tbl = LANG_STRINGS[CurrentLang] or LANG_STRINGS["Indonesia"]
+    for key, entries in pairs(TranslationRegistry) do
+        local str = tbl[key] or key
+        for _, entry in ipairs(entries) do
+            if entry.custom then
+                entry.custom(str)
+            else
+                pcall(function() entry.obj[entry.prop] = str end)
+            end
+        end
+    end
+end
+
+
+--------------------------------------------------------------------------------
+-- [S11] VISUAL CONFIG & THEMES
+--------------------------------------------------------------------------------
+local GUI_THEMES = {
+    Cyan   = { Primary=Color3.fromRGB(0,220,255),   Secondary=Color3.fromRGB(0,160,200),   Text=Color3.fromRGB(0,220,255)   },
+    Red    = { Primary=Color3.fromRGB(255,60,80),    Secondary=Color3.fromRGB(200,20,50),    Text=Color3.fromRGB(255,80,100)  },
+    Purple = { Primary=Color3.fromRGB(160,80,255),   Secondary=Color3.fromRGB(110,40,200),   Text=Color3.fromRGB(180,100,255) },
+    Green  = { Primary=Color3.fromRGB(0,220,120),    Secondary=Color3.fromRGB(0,160,90),     Text=Color3.fromRGB(0,220,130)   },
+    Gold   = { Primary=Color3.fromRGB(255,195,30),   Secondary=Color3.fromRGB(200,145,0),    Text=Color3.fromRGB(255,210,60)  },
+    Pink   = { Primary=Color3.fromRGB(255,80,200),   Secondary=Color3.fromRGB(200,30,150),   Text=Color3.fromRGB(255,100,210) },
+    Orange = { Primary=Color3.fromRGB(255,130,30),   Secondary=Color3.fromRGB(220,90,0),     Text=Color3.fromRGB(255,150,50)  },
+    RGB    = { Primary=Color3.fromRGB(96,205,255),   Secondary=Color3.fromRGB(60,150,200),   Text=Color3.fromRGB(120,220,255) },
+    White  = { Primary=Color3.fromRGB(240,240,255),  Secondary=Color3.fromRGB(180,180,210),  Text=Color3.fromRGB(255,255,255) },
+}
+local THEME_NAMES = { "Cyan","Red","Purple","Green","Gold","Pink","Orange","RGB","White" }
+
+local GUI_BACKGROUNDS = {
+    ["Dark (Default)"] = { Main=Color3.fromRGB(13,13,20),   Header=Color3.fromRGB(18,18,30)  },
+    ["Obsidian Black"] = { Main=Color3.fromRGB(8,8,8),      Header=Color3.fromRGB(14,14,14)  },
+    ["Space Grey"]     = { Main=Color3.fromRGB(28,28,30),   Header=Color3.fromRGB(36,36,38)  },
+    ["Midnight Blue"]  = { Main=Color3.fromRGB(10,14,26),   Header=Color3.fromRGB(16,22,38)  },
+    ["Deep Slate"]     = { Main=Color3.fromRGB(18,22,28),   Header=Color3.fromRGB(26,32,40)  },
+    ["Abyssal Teal"]   = { Main=Color3.fromRGB(12,24,28),   Header=Color3.fromRGB(18,36,42)  },
+    ["Dark Amethyst"]  = { Main=Color3.fromRGB(16,12,26),   Header=Color3.fromRGB(24,18,38)  },
+    ["Crimson Shadow"] = { Main=Color3.fromRGB(22,10,12),   Header=Color3.fromRGB(32,16,18)  },
+    ["Mocha Brown"]    = { Main=Color3.fromRGB(24,18,16),   Header=Color3.fromRGB(34,26,24)  },
+    ["Forest Night"]   = { Main=Color3.fromRGB(14,22,18),   Header=Color3.fromRGB(20,32,26)  },
+    ["Matte Graphite"] = { Main=Color3.fromRGB(20,20,20),   Header=Color3.fromRGB(28,28,28)  },
+}
+local BG_THEME_NAMES = {
+    "Dark (Default)","Obsidian Black","Space Grey","Midnight Blue",
+    "Deep Slate","Abyssal Teal","Dark Amethyst","Crimson Shadow",
+    "Mocha Brown","Forest Night","Matte Graphite"
+}
+
+local FONT_LIST = {
+    "Gotham","GothamMedium","GothamSemibold","GothamBold","GothamBlack",
+    "Arial","ArialBold","SourceSans","SourceSansBold","RobotoMono",
+    "Code","Oswald","Nunito","Ubuntu"
+}
+local FONT_MAP = {
+    Gotham=Enum.Font.Gotham, GothamMedium=Enum.Font.GothamMedium,
+    GothamSemibold=Enum.Font.GothamSemibold, GothamBold=Enum.Font.GothamBold,
+    GothamBlack=Enum.Font.GothamBlack, Arial=Enum.Font.Arial,
+    ArialBold=Enum.Font.ArialBold, SourceSans=Enum.Font.SourceSans,
+    SourceSansBold=Enum.Font.SourceSansBold, RobotoMono=Enum.Font.RobotoMono,
+    Code=Enum.Font.Code, Oswald=Enum.Font.Oswald, Nunito=Enum.Font.Nunito, Ubuntu=Enum.Font.Ubuntu,
+}
+
+local ANIM_STYLES = { "Back","Bounce","Elastic","Quint","Sine","Quad","Quart","Linear" }
+local ANIM_MAP = {
+    Back=Enum.EasingStyle.Back, Bounce=Enum.EasingStyle.Bounce, Elastic=Enum.EasingStyle.Elastic,
+    Quint=Enum.EasingStyle.Quint, Sine=Enum.EasingStyle.Sine, Quad=Enum.EasingStyle.Quad,
+    Quart=Enum.EasingStyle.Quart, Linear=Enum.EasingStyle.Linear,
+}
+
+local TOGGLE_SHAPES = { "Pill","Square","Rounded" }
+local TOGGLE_RADIUS_MAP = { Pill=UDim.new(1,0), Square=UDim.new(0,0), Rounded=UDim.new(0,6) }
+local BUTTON_SHAPES = { "Rounded","Square","Pill" }
+local BUTTON_RADIUS_MAP = { Rounded=UDim.new(0,6), Square=UDim.new(0,0), Pill=UDim.new(1,0) }
+
+local BG_EFFECTS = { "Nonaktif","Ambient Aura","Nano Dust","Fluid Waves","Minimalist Dots","Glass Shards" }
+
+local VisualConfig = {
+    CurrentTheme      = "Cyan",
+    CurrentBg         = "Dark (Default)",
+    TransparentMode   = false,
+    TransparencyLevel = 0.15,
+    GestureMode       = "Classic",
+    GuiWidth          = 500,
+    GuiHeight         = 440,
+    GuiMinWidth       = 340,
+    GuiMinHeight      = 300,
+    CurrentFont       = "GothamMedium",
+    AnimStyle         = "Back",
+    ToggleShape       = "Pill",
+    ButtonShape       = "Rounded",
+    TabMode           = "Horizontal",
+    BgEffect          = "Nano Dust",
+    Language          = "Indonesia",
+}
+
+local rgbHue = 0
+local function GetThemeColor(key)
+    if VisualConfig.CurrentTheme == "RGB" then
+        if key == "Primary" then return Color3.fromHSV(rgbHue, 0.85, 1)
+        elseif key == "Secondary" then return Color3.fromHSV((rgbHue + 0.15) % 1, 0.9, 0.85)
+        else return Color3.fromHSV(rgbHue, 0.7, 1) end
+    end
+    return GUI_THEMES[VisualConfig.CurrentTheme][key]
+end
+
+local ThemeRegistry = {
+    Strokes={}, Fills={}, Texts={}, Toggles={}, Indicators={},
+    AllLabels={}, ToggleTracks={}, ToggleThumbs={}, BtnCorners={},
+}
+local function RegisterThemeElement(cat, elem) table.insert(ThemeRegistry[cat], elem) end
+
+local function ApplyTheme()
+    local pri, sec, txt = GetThemeColor("Primary"), GetThemeColor("Secondary"), GetThemeColor("Text")
+    for _, stroke in ipairs(ThemeRegistry.Strokes) do pcall(function() stroke.Color = pri end) end
+    for _, fill in ipairs(ThemeRegistry.Fills) do pcall(function() fill.elem.BackgroundColor3 = fill._type == "border" and sec or pri end) end
+    for _, label in ipairs(ThemeRegistry.Texts) do pcall(function() label.TextColor3 = txt end) end
+    for _, tdata in ipairs(ThemeRegistry.Toggles) do pcall(function() if tdata.state then tdata.bg.BackgroundColor3 = pri end end) end
+    for _, ind in ipairs(ThemeRegistry.Indicators) do pcall(function() ind.BackgroundColor3 = pri end) end
+end
+
+function ApplyFont()
+    local targetSize = VisualConfig.FontSize or 14 -- Default 14
+    local targetFont = Enum.Font[VisualConfig.CurrentFont] or Enum.Font.Gotham
+   
+    -- FIX: Menggunakan ThemeRegistry.AllLabels karena GUI_MAIN tidak ada
+    for _, obj in ipairs(ThemeRegistry.AllLabels) do
+        pcall(function()
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+                obj.Font = targetFont
+                obj.TextSize = targetSize
+            end
+        end)
+    end
+end
+
+
+
+local function ApplyToggleShape()
+    local trackRadius = TOGGLE_RADIUS_MAP[VisualConfig.ToggleShape] or UDim.new(1, 0)
+    local thumbRadius = (VisualConfig.ToggleShape == "Square") and UDim.new(0, 2) or UDim.new(1, 0)
+    for _, corner in ipairs(ThemeRegistry.ToggleTracks) do pcall(function() corner.CornerRadius = trackRadius end) end
+    for _, corner in ipairs(ThemeRegistry.ToggleThumbs) do pcall(function() corner.CornerRadius = thumbRadius end) end
+end
+
+local function ApplyButtonShape()
+    local radius = BUTTON_RADIUS_MAP[VisualConfig.ButtonShape] or UDim.new(0, 6)
+    for _, corner in ipairs(ThemeRegistry.BtnCorners) do pcall(function() corner.CornerRadius = radius end) end
+end
+
+local GuiPanels = {}
+local function ApplyTransparency()
+    local t = VisualConfig.TransparentMode and VisualConfig.TransparencyLevel or 0
+    for _, panel in ipairs(GuiPanels) do pcall(function() TweenService:Create(panel, TweenInfo.new(0.3), {BackgroundTransparency = t}):Play() end) end
+end
+local function RegisterPanel(frame) table.insert(GuiPanels, frame) end
+
+local ActiveBgEffect = nil
+local ParticleTask = nil
+local function ClearBgEffect()
+    if ActiveBgEffect then pcall(function() ActiveBgEffect:Destroy() end) end
+    ActiveBgEffect = nil
+    if ParticleTask then task.cancel(ParticleTask) end
+    ParticleTask = nil
+end
+
+-- Tambahkan fungsi ini di [S11]
+function UpdateFontSize(newSize)
+    VisualConfig.FontSize = newSize -- Simpan di config agar bisa diingat
+    for _, obj in ipairs(ThemeRegistry.AllLabels) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            obj.TextSize = newSize
+        end
+    end
+end
+
+
+
+--------------------------------------------------------------------------------
+-- [S12] DRAGGABLE & RESIZE
+--------------------------------------------------------------------------------
+local UserInputService = Services.UserInputService
+local isWindowMaximized = false
+
+local function MakeDraggable(handle, target)
+    local dragging, dragStart, startPos
+    handle.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isWindowMaximized then
+            dragging = true; dragStart = input.Position; startPos = target.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+local function MakeResizable(handle, target)
+    local resizing, resizeStart, startSize
+    handle.InputBegan:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isWindowMaximized then
+            resizing = true; resizeStart = input.Position; startSize = target.AbsoluteSize
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - resizeStart
+            local newW = math.max(VisualConfig.GuiMinWidth,  startSize.X + delta.X)
+            local newH = math.max(VisualConfig.GuiMinHeight, startSize.Y + delta.Y)
+            VisualConfig.GuiWidth = newW; VisualConfig.GuiHeight = newH
+            target.Size = UDim2.new(0, newW, 0, newH)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then resizing = false end
+    end)
+end
+
+
+--------------------------------------------------------------------------------
+-- [S13] UI COMPONENT BUILDER
+--------------------------------------------------------------------------------
+RuntimeMaid:DoCleaning()
+
+local function GetSafeParent()
+    local ok, r = pcall(function() return gethui and gethui() end)
+    if ok and r then return r end
+    local ok2, r2 = pcall(function() return game:GetService("CoreGui") end)
+    if ok2 and r2 then return r2 end
+    return LocalPlayer:WaitForChild("PlayerGui", 10)
+end
+local SafeParent = GetSafeParent()
+
+local GuiRoot = Instance.new("ScreenGui", SafeParent)
+GuiRoot.Name="XiFilHub_Modern"; GuiRoot.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+GuiRoot.ResetOnSpawn=false; GuiRoot.DisplayOrder=999990
+GuiRoot.IgnoreGuiInset = true
+RuntimeMaid:GiveTask(GuiRoot)
+
+-- SECTION HEADER
+local function CreateSection(parent, titleText, langKey)
+    local sec = Instance.new("Frame", parent)
+    sec.BackgroundTransparency = 1; sec.Size = UDim2.new(1, 0, 0, 28)
+    local line = Instance.new("Frame", sec)
+    line.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+    line.Size = UDim2.new(1, 0, 0, 1); line.Position = UDim2.new(0, 0, 0.5, 0)
+    line.AnchorPoint = Vector2.new(0, 0.5); line.BorderSizePixel = 0
+    local lbl = Instance.new("TextLabel", sec)
+    lbl.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    lbl.Size = UDim2.new(0, 0, 1, 0); lbl.AutomaticSize = Enum.AutomaticSize.X
+    lbl.Position = UDim2.new(0, 8, 0, 0); lbl.BorderSizePixel = 0
+    Instance.new("UICorner", lbl).CornerRadius = UDim.new(0, 6)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Text = "  " .. string.upper(titleText) .. "  "
+    lbl.TextColor3 = GetThemeColor("Text"); lbl.TextSize = 10
+    RegisterThemeElement("Texts", lbl)
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    if langKey then
+        RegisterTranslationFn(langKey, function(str)
+            pcall(function() lbl.Text = "  " .. string.upper(str) .. "  " end)
+        end)
+    end
+    return sec
+end
+
+-- TOGGLE
+local function CreateToggleUI(parent, text, default, callback, langKey)
+    local container = Instance.new("Frame", parent)
+    container.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    container.BackgroundTransparency = 0.2
+    container.Size = UDim2.new(1, 0, 0, 42); container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 10)
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.BackgroundTransparency = 1; lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.Size = UDim2.new(0.75, 0, 1, 0); lbl.Font = Enum.Font.GothamMedium
+    lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(205, 205, 218)
+    lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    if langKey then RegisterTranslation(langKey, lbl, "Text") end
+
+    local track = Instance.new("TextButton", container)
+    track.BackgroundColor3 = default and GetThemeColor("Primary") or Color3.fromRGB(38, 38, 55)
+    track.Position = UDim2.new(1, -52, 0.5, -12)
+    track.Size = UDim2.new(0, 40, 0, 24); track.Text = ""
+    track.AutoButtonColor = false; track.BorderSizePixel = 0
+    local trackCorner = Instance.new("UICorner", track)
+    trackCorner.CornerRadius = TOGGLE_RADIUS_MAP[VisualConfig.ToggleShape] or UDim.new(1, 0)
+    table.insert(ThemeRegistry.ToggleTracks, trackCorner)
+
+    local thumb = Instance.new("Frame", track)
+    thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    thumb.Size = UDim2.new(0, 20, 0, 20)
+    thumb.Position = default and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+    thumb.BorderSizePixel = 0
+    local thumbCorner = Instance.new("UICorner", thumb)
+    thumbCorner.CornerRadius = (VisualConfig.ToggleShape == "Square") and UDim.new(0, 2) or UDim.new(1, 0)
+    table.insert(ThemeRegistry.ToggleThumbs, thumbCorner)
+
+    local state = default
+    local tdata = { bg = track, circle = thumb, state = state }
+    RegisterThemeElement("Toggles", tdata)
+
+    local api = {}
+    function api:SetValue(val)
+        state = val; tdata.state = val
+        local pri = GetThemeColor("Primary")
+        local ti = TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        if val then
+            TweenService:Create(track, ti, { BackgroundColor3 = pri }):Play()
+            TweenService:Create(thumb, ti, { Position = UDim2.new(1, -22, 0.5, -10) }):Play()
+        else
+            TweenService:Create(track, ti, { BackgroundColor3 = Color3.fromRGB(38, 38, 55) }):Play()
+            TweenService:Create(thumb, ti, { Position = UDim2.new(0, 2, 0.5, -10) }):Play()
+        end
+        pcall(callback, val)
+    end
+    track.MouseButton1Click:Connect(function() api:SetValue(not state) end)
+    return api
+end
+
+-- DROPDOWN (animated, premium vertical)
+-- DROPDOWN (FIXED VISUAL: ANTI TERTUMPUK & ANTI TERPOTONG)
+local function CreateDropdownUI(parent, labelText, list, default, callback, langKey)
+    local container = Instance.new("Frame", parent)
+    container.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    container.BackgroundTransparency = 0.2
+    container.Size = UDim2.new(1, 0, 0, 42)
+    container.ClipsDescendants = false
+    container.ZIndex = 10; container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 8)
+
+    -- [FIX 1] Spacer ajaib agar list dropdown memberi ruang pada tab scroll di bawahnya
+    local spacer = Instance.new("Frame", parent)
+    spacer.BackgroundTransparency = 1
+    spacer.Size = UDim2.new(1, 0, 0, 0)
+    spacer.Visible = false
+    spacer.BorderSizePixel = 0
+
+    local lbl = Instance.new("TextLabel", container)
+    lbl.BackgroundTransparency = 1
+    lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.Size = UDim2.new(0.48, 0, 1, 0)
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.Text = labelText; lbl.TextColor3 = Color3.fromRGB(205, 205, 218)
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.ZIndex = 11
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    if langKey then RegisterTranslation(langKey, lbl, "Text") end
+
+    local mainBtn = Instance.new("TextButton", container)
+    mainBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 40)
+    mainBtn.Position = UDim2.new(1, -135, 0.5, -14)
+    mainBtn.Size = UDim2.new(0, 123, 0, 28)
+    mainBtn.Font = Enum.Font.GothamSemibold
+    mainBtn.Text = tostring(default) .. ""
+    mainBtn.TextColor3 = GetThemeColor("Text")
+    mainBtn.TextSize = 11
+    mainBtn.AutoButtonColor = false; mainBtn.ZIndex = 12
+    mainBtn.BorderSizePixel = 0
+    local btnCorner = Instance.new("UICorner", mainBtn)
+    btnCorner.CornerRadius = BUTTON_RADIUS_MAP[VisualConfig.ButtonShape] or UDim.new(0, 6)
+    table.insert(ThemeRegistry.BtnCorners, btnCorner)
+    table.insert(ThemeRegistry.AllLabels, mainBtn)
+    local mbStroke = Instance.new("UIStroke", mainBtn)
+    mbStroke.Color = GetThemeColor("Primary")
+    mbStroke.Thickness = 1; mbStroke.Transparency = 0.5
+    RegisterThemeElement("Strokes", mbStroke)
+    RegisterThemeElement("Texts", mainBtn)
+
+        local targetH = math.min(#list * 30, 150)
+    local panelClip = Instance.new("Frame", mainBtn)
+    panelClip.BackgroundTransparency = 1
+    panelClip.Position = UDim2.new(0, 0, 1, 6)
+    panelClip.Size = UDim2.new(1, 0, 0, 0)
+    panelClip.ClipsDescendants = true
+    panelClip.Visible = false
+    panelClip.ZIndex = 9999; panelClip.BorderSizePixel = 0
+
+    local panel = Instance.new("ScrollingFrame", panelClip)
+    panel.BackgroundColor3 = Color3.fromRGB(18, 18, 32)
+    -- [FIX UTAMA]: Beri jarak 1px ke dalam agar UIStroke tidak digunting oleh ClipsDescendants
+    panel.Position = UDim2.new(0, 1, 0, 1)
+    panel.Size = UDim2.new(1, -2, 1, -2) 
+    panel.ZIndex = 10000
+    panel.ScrollBarThickness = 3
+    panel.ScrollBarImageColor3 = GetThemeColor("Primary")
+    panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    panel.BorderSizePixel = 0
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIListLayout", panel).SortOrder = Enum.SortOrder.LayoutOrder
+
+    local panelPad = Instance.new("UIPadding", panel)
+    panelPad.PaddingLeft = UDim.new(0, 2)
+    panelPad.PaddingRight = UDim.new(0, 2)
+    panelPad.PaddingTop = UDim.new(0, 2)
+    panelPad.PaddingBottom = UDim.new(0, 2)
+
+    local panelStroke = Instance.new("UIStroke", panel)
+    panelStroke.Color = GetThemeColor("Primary")
+    panelStroke.Thickness = 1; panelStroke.Transparency = 0.65
+    RegisterThemeElement("Strokes", panelStroke)
+
+    local isOpen = false
+    local animating = false
+
+    local api = { CurrentList = list, SelectedValue = default }
+
+    local function refreshItems()
+        for _, c in ipairs(panel:GetChildren()) do
+            if c:IsA("TextButton") then c:Destroy() end
+        end
+        targetH = math.min(#api.CurrentList * 30, 150)
+        for _, valName in ipairs(api.CurrentList) do
+            local ib = Instance.new("TextButton", panel)
+            ib.BackgroundColor3 = Color3.fromRGB(22, 22, 35)
+            ib.Size = UDim2.new(1, 0, 0, 30)
+            ib.Font = Enum.Font.GothamMedium
+            ib.Text = "  " .. tostring(valName)
+            ib.TextColor3 = Color3.fromRGB(210, 210, 228)
+            ib.TextSize = 11
+            ib.TextXAlignment = Enum.TextXAlignment.Left
+            ib.ZIndex = 10001
+            ib.BorderSizePixel = 0
+            Instance.new("UICorner", ib).CornerRadius = UDim.new(0, 6)
+      
+            table.insert(ThemeRegistry.AllLabels, ib)
+            ib.MouseEnter:Connect(function()
+                TweenService:Create(ib, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(32, 32, 52), TextColor3 = GetThemeColor("Text") }):Play()
+            end)
+            ib.MouseLeave:Connect(function()
+                TweenService:Create(ib, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(22, 22, 35), TextColor3 = Color3.fromRGB(210, 210, 228) }):Play()
+            end)
+            ib.MouseButton1Click:Connect(function()
+                mainBtn.Text = tostring(valName) .. ""
+                -- Tutup Dropdown dan kempeskan Spacer bersamaan
+                TweenService:Create(panelClip, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+                TweenService:Create(spacer, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+                task.wait(0.2)
+                panelClip.Visible = false; spacer.Visible = false
+                container.ZIndex = 10; isOpen = false; animating = false
+                api.SelectedValue = valName
+                pcall(callback, valName)
+            end)
+        end
+    end
+
+    mainBtn.MouseButton1Click:Connect(function()
+        if animating then return end
+        isOpen = not isOpen
+        animating = true
+        if isOpen then
+            panelClip.Visible = true; spacer.Visible = true
+            container.ZIndex = 9998
+            -- Buka Dropdown dan lebarkan Spacer
+            TweenService:Create(panelClip, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, targetH) }):Play()
+            TweenService:Create(spacer, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, targetH + 6) }):Play()
+            task.wait(0.28)
+            animating = false
+        else
+            TweenService:Create(panelClip, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+            TweenService:Create(spacer, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+            task.wait(0.25)
+            panelClip.Visible = false; spacer.Visible = false
+            container.ZIndex = 10; animating = false
+        end
+    end)
+
+    function api:SetValues(nl)
+        api.CurrentList = nl
+        api.SelectedValue = nl[1] or "None"
+        mainBtn.Text = tostring(api.SelectedValue) .. ""
+        refreshItems()
+    end
+
+    function api:SetValue(tv)
+        api.SelectedValue = tv
+        mainBtn.Text = tostring(tv) .. ""
+        -- Force close jika nilainya di-set via script luar
+        TweenService:Create(panelClip, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+        TweenService:Create(spacer, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+        task.wait(0.2)
+        panelClip.Visible = false; spacer.Visible = false
+        container.ZIndex = 10; isOpen = false; animating = false
+        pcall(callback, tv)
+    end
+
+    refreshItems()
+    return api
+end
+
+
+-- CYCLE BUTTON
+local function CreateCycleUI(parent, text, list, default, callback)
+    local container = Instance.new("Frame", parent)
+    container.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    container.BackgroundTransparency = 0.2
+    container.Size = UDim2.new(1, 0, 0, 42); container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 10)
+    local lbl = Instance.new("TextLabel", container)
+    lbl.BackgroundTransparency = 1; lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.Size = UDim2.new(0.45, 0, 1, 0); lbl.Font = Enum.Font.GothamMedium; lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(210, 210, 210); lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    local btn = Instance.new("TextButton", container)
+    btn.BackgroundColor3 = Color3.fromRGB(26, 26, 40)
+    btn.Position = UDim2.new(1, -135, 0.5, -14); btn.Size = UDim2.new(0, 123, 0, 28)
+    btn.Font = Enum.Font.GothamSemibold; btn.Text = tostring(default)
+    btn.TextColor3 = GetThemeColor("Text"); btn.TextSize = 11; btn.BorderSizePixel = 0
+    local btnC = Instance.new("UICorner", btn)
+    btnC.CornerRadius = BUTTON_RADIUS_MAP[VisualConfig.ButtonShape] or UDim.new(0, 6)
+    table.insert(ThemeRegistry.BtnCorners, btnC)
+    table.insert(ThemeRegistry.AllLabels, btn)
+    RegisterThemeElement("Texts", btn)
+    local bs = Instance.new("UIStroke", btn)
+    bs.Color = GetThemeColor("Primary"); bs.Thickness = 1; bs.Transparency = 0.5
+    RegisterThemeElement("Strokes", bs)
+    local idx = 1; for i, v in ipairs(list) do if v == default then idx = i; break end end
+    local api = { CurrentList = list }
+    btn.MouseButton1Click:Connect(function()
+        idx = idx % #api.CurrentList + 1; local val = api.CurrentList[idx]; btn.Text = tostring(val); callback(val)
+    end)
+    function api:SetValues(nl) api.CurrentList = nl; idx = 1; btn.Text = tostring(nl[1] or "None") end
+    function api:SetValue(tv)
+        for i, v in ipairs(api.CurrentList) do
+            if tostring(v) == tostring(tv) then idx = i; btn.Text = tostring(v); callback(v); break end
+        end
+    end
+    return api
+end
+
+-- INPUT BOX
+local function CreateInputUI(parent, text, default, numeric, callback)
+    local container = Instance.new("Frame", parent)
+    container.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    container.BackgroundTransparency = 0.2
+    container.Size = UDim2.new(1, 0, 0, 42); container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 10)
+    local lbl = Instance.new("TextLabel", container)
+    lbl.BackgroundTransparency = 1; lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.Size = UDim2.new(0.55, 0, 1, 0); lbl.Font = Enum.Font.GothamMedium; lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(210, 210, 210); lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    local boxBG = Instance.new("Frame", container)
+    boxBG.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
+    boxBG.Position = UDim2.new(1, -135, 0.5, -14); boxBG.Size = UDim2.new(0, 123, 0, 28)
+    Instance.new("UICorner", boxBG).CornerRadius = UDim.new(0, 6)
+    local boxStroke = Instance.new("UIStroke", boxBG)
+    boxStroke.Color = Color3.fromRGB(50, 50, 60); boxStroke.Thickness = 1
+    local box = Instance.new("TextBox", boxBG)
+    box.BackgroundTransparency = 1; box.Size = UDim2.new(1, 0, 1, 0)
+    box.Font = Enum.Font.GothamMedium; box.Text = tostring(default)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255); box.TextSize = 11
+    box.Focused:Connect(function() boxStroke.Color = GetThemeColor("Primary") end)
+    box.FocusLost:Connect(function()
+        boxStroke.Color = Color3.fromRGB(50, 50, 60); local val = box.Text
+        if numeric then val = tonumber(val) or default; box.Text = tostring(val) end; callback(val)
+    end)
+    local api = {}; function api:SetValue(val) box.Text = tostring(val); callback(val) end; return api
+end
+
+-- BUTTON
+local function CreateButton(parent, text, callback, langKey)
+    local btn = Instance.new("TextButton", parent)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 35)
+    btn.Size = UDim2.new(1, 0, 0, 36); btn.Font = Enum.Font.GothamSemibold; btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220); btn.TextSize = 12; btn.BorderSizePixel = 0
+    local bc = Instance.new("UICorner", btn)
+    bc.CornerRadius = BUTTON_RADIUS_MAP[VisualConfig.ButtonShape] or UDim.new(0, 6)
+    table.insert(ThemeRegistry.BtnCorners, bc)
+    table.insert(ThemeRegistry.AllLabels, btn)
+    local bs = Instance.new("UIStroke", btn)
+    bs.Color = GetThemeColor("Primary"); bs.Thickness = 1; bs.Transparency = 0.6
+    RegisterThemeElement("Strokes", bs)
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(32, 32, 50) }):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(22, 22, 35) }):Play() end)
+    if langKey then RegisterTranslation(langKey, btn, "Text") end
+    btn.MouseButton1Click:Connect(callback); return btn
+end
+
+-- MULTI CHECK (pill row)
+local function CreateMultiCheckUI(parent, labelText, items, states, callbacks)
+    local wrapper = Instance.new("Frame", parent)
+    wrapper.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    wrapper.BackgroundTransparency = 0.2
+    wrapper.BorderSizePixel = 0; wrapper.Size = UDim2.new(1, 0, 0, 64)
+    Instance.new("UICorner", wrapper).CornerRadius = UDim.new(0, 10)
+    local lbl = Instance.new("TextLabel", wrapper)
+    lbl.BackgroundTransparency = 1; lbl.Position = UDim2.new(0, 14, 0, 4); lbl.Size = UDim2.new(1, -16, 0, 18)
+    lbl.Font = Enum.Font.GothamMedium; lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(150, 150, 165); lbl.TextSize = 10; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(ThemeRegistry.AllLabels, lbl)
+    local row = Instance.new("Frame", wrapper)
+    row.BackgroundTransparency = 1; row.Position = UDim2.new(0, 10, 0, 26); row.Size = UDim2.new(1, -20, 0, 30)
+    local layout = Instance.new("UIListLayout", row)
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    layout.VerticalAlignment = Enum.VerticalAlignment.Center
+    layout.Padding = UDim.new(0, 6)
+    local apis = {}
+    for i, item in ipairs(items) do
+        local active = states[i]
+        local btn = Instance.new("TextButton", row)
+        btn.Size = UDim2.new(0, 80, 0, 26)
+        btn.BackgroundColor3 = active and GetThemeColor("Primary") or Color3.fromRGB(35, 35, 50)
+        btn.TextColor3 = active and Color3.fromRGB(10, 10, 15) or Color3.fromRGB(200, 200, 200)
+        btn.Text = item; btn.Font = Enum.Font.GothamSemibold; btn.TextSize = 11; btn.AutoButtonColor = false; btn.BorderSizePixel = 0
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        local api = { state = active }
+        function api:SetValue(val)
+            api.state = val
+            btn.BackgroundColor3 = val and GetThemeColor("Primary") or Color3.fromRGB(35, 35, 50)
+            btn.TextColor3 = val and Color3.fromRGB(10, 10, 15) or Color3.fromRGB(200, 200, 200)
+            callbacks[i](val)
+        end
+        btn.MouseButton1Click:Connect(function() api:SetValue(not api.state) end)
+        apis[i] = api
+    end
+    return apis
+end
+
+-- SLIDER
+local function CreateSliderUI(parent, labelText, min, max, default, callback, langKey)
+    local container = Instance.new("Frame", parent)
+    container.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    container.BackgroundTransparency = 0.2
+    container.Size = UDim2.new(1, 0, 0, 58); container.BorderSizePixel = 0
+    Instance.new("UICorner", container).CornerRadius = UDim.new(0, 10)
+    local header = Instance.new("TextLabel", container)
+    header.BackgroundTransparency = 1; header.Position = UDim2.new(0, 14, 0, 6)
+    header.Size = UDim2.new(0.68, 0, 0, 20); header.Font = Enum.Font.GothamMedium
+    header.Text = labelText; header.TextColor3 = Color3.fromRGB(205, 205, 218)
+    header.TextSize = 12; header.TextXAlignment = Enum.TextXAlignment.Left
+    table.insert(ThemeRegistry.AllLabels, header)
+    if langKey then RegisterTranslation(langKey, header, "Text") end
+    local valLabel = Instance.new("TextLabel", container)
+    valLabel.BackgroundTransparency = 1; valLabel.Position = UDim2.new(0.68, 0, 0, 6)
+    valLabel.Size = UDim2.new(0.3, -10, 0, 20); valLabel.Font = Enum.Font.GothamBold
+    valLabel.Text = tostring(default); valLabel.TextColor3 = GetThemeColor("Text")
+    valLabel.TextSize = 12; valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    RegisterThemeElement("Texts", valLabel); table.insert(ThemeRegistry.AllLabels, valLabel)
+    local track = Instance.new("Frame", container)
+    track.BackgroundColor3 = Color3.fromRGB(35, 35, 52)
+    track.Position = UDim2.new(0, 14, 0, 36); track.Size = UDim2.new(1, -28, 0, 6); track.BorderSizePixel = 0
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+    local fill = Instance.new("Frame", track)
+    fill.BackgroundColor3 = GetThemeColor("Primary")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0); fill.BorderSizePixel = 0
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    RegisterThemeElement("Fills", { elem = fill, _type = "primary" })
+    local thumb = Instance.new("TextButton", track)
+    thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    thumb.Size = UDim2.new(0, 18, 0, 18)
+    thumb.Position = UDim2.new((default - min) / (max - min), -9, 0.5, -9)
+    thumb.Text = ""; thumb.AutoButtonColor = false; thumb.BorderSizePixel = 0; thumb.ZIndex = 2
+    Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
+    local dragging = false
+    local function update(absPos)
+        local alpha = math.clamp((absPos.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + alpha * (max - min))
+        fill.Size = UDim2.new(alpha, 0, 1, 0); thumb.Position = UDim2.new(alpha, -9, 0.5, -9)
+        valLabel.Text = tostring(value); pcall(callback, value)
+    end
+    thumb.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then dragging = true end
+    end)
+    track.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then update(inp.Position) end
+    end)
+    UserInputService.InputChanged:Connect(function(inp)
+        if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then update(inp.Position) end
+    end)
+    UserInputService.InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+
+--------------------------------------------------------------------------------
+-- [S14] MAIN WINDOW & WINDOW CONTROLS
+--------------------------------------------------------------------------------
+local camera = game:GetService("Workspace").CurrentCamera
+local screenSize = camera.ViewportSize
+
+-- Menghitung ukuran dinamis (misal: 40% lebar layar, 50% tinggi layar)
+-- Dibatasi dengan math.clamp agar tidak lebih kecil dari batas minimum
+local dynamicWidth = math.clamp(screenSize.X * 0.4, VisualConfig.GuiMinWidth, 800)
+local dynamicHeight = math.clamp(screenSize.Y * 0.5, VisualConfig.GuiMinHeight, 600)
+
+VisualConfig.GuiWidth = dynamicWidth
+VisualConfig.GuiHeight = dynamicHeight
+
+local MainWindow = Instance.new("Frame", GuiRoot)
+MainWindow.BackgroundColor3 = Color3.fromRGB(13, 13, 20)
+MainWindow.Position = UDim2.new(0.5, -dynamicWidth/2, 0.5, -dynamicHeight/2)
+MainWindow.Size = UDim2.new(0, dynamicWidth, 0, dynamicHeight)
+MainWindow.Visible = false;
+MainWindow.BorderSizePixel = 0; MainWindow.ZIndex = 2
+MainWindow.ClipsDescendants = true
+Instance.new("UICorner", MainWindow).CornerRadius = UDim.new(0, 12)
+RegisterPanel(MainWindow)
+
+local TopBar = Instance.new("Frame", MainWindow)
+TopBar.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
+TopBar.Size = UDim2.new(1, 0, 0, 46);
+TopBar.BorderSizePixel = 0; TopBar.ZIndex = 3
+Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
+RegisterPanel(TopBar)
+
+local TBFix = Instance.new("Frame", TopBar)
+TBFix.BackgroundColor3 = Color3.fromRGB(18, 18, 30);
+TBFix.BorderSizePixel = 0
+TBFix.Size = UDim2.new(1, 0, 0, 12); TBFix.Position = UDim2.new(0, 0, 1, -12);
+TBFix.ZIndex = 3
+
+local TopAccent = Instance.new("Frame", TopBar)
+TopAccent.BackgroundColor3 = GetThemeColor("Primary")
+TopAccent.Size = UDim2.new(1, 0, 0, 1);
+TopAccent.Position = UDim2.new(0, 0, 1, -1)
+TopAccent.BorderSizePixel = 0; TopAccent.BackgroundTransparency = 0.6;
+TopAccent.ZIndex = 4
+RegisterThemeElement("Fills", { elem = TopAccent, _type = "primary" })
+MakeDraggable(TopBar, MainWindow)
+
+local Title = Instance.new("TextLabel", TopBar)
+Title.BackgroundTransparency = 1;
+Title.Position = UDim2.new(0, 16, 0, 0)
+Title.Size = UDim2.new(0.55, 0, 1, 0);
+Title.Font = Enum.Font.GothamBlack
+Title.RichText = true
+Title.Text = 'XIFIL <font color="#ffffff">HUB</font> <font size="10" color="#606080">// IRON SOUL V5</font>'
+Title.TextColor3 = GetThemeColor("Text");
+Title.TextSize = 15
+Title.TextXAlignment = Enum.TextXAlignment.Left; Title.ZIndex = 4
+RegisterThemeElement("Texts", Title); table.insert(ThemeRegistry.AllLabels, Title)
+
+-- Window Control Buttons (Minimize / Maximize / Close)
+local WindowControls = Instance.new("Frame", TopBar)
+WindowControls.BackgroundTransparency = 1
+WindowControls.Position = UDim2.new(1, -120, 0, 0)
+WindowControls.Size = UDim2.new(0, 120, 1, 0);
+WindowControls.ZIndex = 5
+
+local function CreateWinButton(parent, text, xPos)
+    local btn = Instance.new("TextButton", parent)
+    btn.BackgroundTransparency = 1
+    btn.Position = UDim2.new(0, xPos, 0, 0);
+    btn.Size = UDim2.new(0, 40, 1, 0)
+    btn.Font = Enum.Font.GothamMedium;
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200);
+    btn.TextSize = 14
+    btn.AutoButtonColor = false
+    local highlight = Instance.new("Frame", btn)
+    highlight.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    highlight.BackgroundTransparency = 1;
+    highlight.Size = UDim2.new(1, 0, 1, 0); highlight.BorderSizePixel = 0
+    Instance.new("UICorner", highlight).CornerRadius = UDim.new(0, 8)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(highlight, TweenInfo.new(0.2), { BackgroundTransparency = text == "X" and 0.2 or 0.8 }):Play()
+        if text == "X" then highlight.BackgroundColor3 = Color3.fromRGB(255, 60, 60); btn.TextColor3 = Color3.fromRGB(255, 255, 255) end
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(highlight, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+        if text == "X" then highlight.BackgroundColor3 = Color3.fromRGB(255, 255, 255); btn.TextColor3 = Color3.fromRGB(200, 200, 200) end
+    end)
+    return btn
+end
+local BtnMin   = CreateWinButton(WindowControls, "_", 0)
+local BtnMax   = CreateWinButton(WindowControls, "[ ]", 40)
+local BtnClose = CreateWinButton(WindowControls, "X", 80)
+
+-- Resize handle
+local ResizeHandle = Instance.new("TextButton", MainWindow)
+ResizeHandle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+ResizeHandle.Size = UDim2.new(0, 20, 0, 20)
+ResizeHandle.Position = UDim2.new(1, -20, 1, -20)
+ResizeHandle.Text = "";
+ResizeHandle.AutoButtonColor = false; ResizeHandle.ZIndex = 10; ResizeHandle.BorderSizePixel = 0
+Instance.new("UICorner", ResizeHandle).CornerRadius = UDim.new(0, 5)
+MakeResizable(ResizeHandle, MainWindow)
+-- 3 titik diagonal sebagai indikator resize
+for i = 0, 2 do
+    local dot = Instance.new("Frame", ResizeHandle)
+    dot.BackgroundColor3 = Color3.fromRGB(170, 170, 210)
+    dot.BorderSizePixel = 0;
+    dot.ZIndex = 11
+    dot.Size = UDim2.new(0, 2, 0, 2)
+    dot.AnchorPoint = Vector2.new(0.5, 0.5)
+    dot.Position = UDim2.new(0, 6 + i*5, 0, 6 + i*5)
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+end
+
+local isMinimized = false
+local normalPos = UDim2.new()
+local normalSize = UDim2.new()
+
+
+
+--------------------------------------------------------------------------------
+-- [S15] TAB SYSTEM
+--------------------------------------------------------------------------------
+local TabBar = Instance.new("ScrollingFrame", MainWindow)
+TabBar.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+TabBar.Position = UDim2.new(0, 10, 0, 54)
+TabBar.Size = UDim2.new(1, -20, 0, 36); TabBar.BorderSizePixel = 0; TabBar.ZIndex = 3
+TabBar.ScrollingDirection = Enum.ScrollingDirection.X
+TabBar.AutomaticCanvasSize = Enum.AutomaticSize.X
+TabBar.CanvasSize = UDim2.new(0, 0, 0, 0)
+TabBar.ScrollBarThickness = 0
+Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 8)
+RegisterPanel(TabBar)
+local TabLayout = Instance.new("UIListLayout", TabBar)
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+TabLayout.Padding = UDim.new(0, 2)
+local TabPad = Instance.new("UIPadding", TabBar); TabPad.PaddingLeft = UDim.new(0, 4)
+
+local SideBar = Instance.new("ScrollingFrame", MainWindow)
+SideBar.BackgroundColor3 = Color3.fromRGB(16, 16, 26)
+SideBar.Position = UDim2.new(0, 0, 0, 46)
+SideBar.Size = UDim2.new(0, 90, 1, -46)
+SideBar.BorderSizePixel = 0; SideBar.ZIndex = 3; SideBar.Visible = false
+
+-- Konfigurasi khusus agar bisa di-scroll secara vertikal
+SideBar.ScrollingDirection = Enum.ScrollingDirection.Y
+SideBar.ScrollBarThickness = 2 -- Dibuat sangat tipis agar rapi di sidebar 90px
+SideBar.CanvasSize = UDim2.new(0, 0, 0, 0)
+SideBar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+SideBar.ScrollBarImageColor3 = GetThemeColor("Primary") -- Warna scrollbar menyesuaikan tema
+
+Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 0)
+RegisterPanel(SideBar)
+
+local SideLayout = Instance.new("UIListLayout", SideBar)
+SideLayout.FillDirection = Enum.FillDirection.Vertical
+SideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SideLayout.Padding = UDim.new(0, 3)
+Instance.new("UIPadding", SideBar).PaddingTop = UDim.new(0, 6)
+
+
+local ContentFrame = Instance.new("Frame", MainWindow)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Position = UDim2.new(0, 10, 0, 96)
+ContentFrame.Size = UDim2.new(1, -20, 1, -106); ContentFrame.ZIndex = 3
+
+local TabRegistry = {}
+local ActiveTab = nil
+
+local SwitchTab
+SwitchTab = function(tabName)
+    if ActiveTab == tabName then return end
+    ActiveTab = tabName
+    for name, tdata in pairs(TabRegistry) do
+        local isActive = (name == tabName)
+        tdata.Page.Visible = isActive; tdata.Pill.Visible = isActive
+        if tdata.SidePill then tdata.SidePill.Visible = isActive end
+        tdata.Button.TextColor3 = isActive and Color3.fromRGB(255,255,255) or Color3.fromRGB(140,140,165)
+        if tdata.SideBtn then
+            tdata.SideBtn.TextColor3 = isActive and Color3.fromRGB(255,255,255) or Color3.fromRGB(140,140,165)
+            tdata.SideBtn.BackgroundColor3 = isActive and Color3.fromRGB(28,28,48) or Color3.fromRGB(22,22,36)
+        end
+    end
+end
+
+local function CreateTab(tabName, langKey)
+    local tabBtn = Instance.new("TextButton", TabBar)
+    tabBtn.BackgroundTransparency = 1; tabBtn.Size = UDim2.new(0, 66, 1, -8)
+    tabBtn.Font = Enum.Font.GothamSemibold; tabBtn.Text = tabName
+    tabBtn.TextColor3 = Color3.fromRGB(140, 140, 165); tabBtn.TextSize = 9
+    tabBtn.AutoButtonColor = false; tabBtn.ZIndex = 4
+    table.insert(ThemeRegistry.AllLabels, tabBtn)
+
+    local Pill = Instance.new("Frame", tabBtn)
+    Pill.BackgroundColor3 = GetThemeColor("Primary"); Pill.BorderSizePixel = 0
+    Pill.Size = UDim2.new(0.65, 0, 0, 2); Pill.Position = UDim2.new(0.5, 0, 1, 0)
+    Pill.AnchorPoint = Vector2.new(0.5, 1); Pill.ZIndex = 4; Pill.Visible = false
+    Instance.new("UICorner", Pill).CornerRadius = UDim.new(1, 0)
+    RegisterThemeElement("Indicators", Pill)
+
+    local sideBtn = Instance.new("TextButton", SideBar)
+    sideBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 36)
+    sideBtn.Size = UDim2.new(1, -8, 0, 38); sideBtn.Font = Enum.Font.GothamSemibold
+    sideBtn.Text = tabName; sideBtn.TextColor3 = Color3.fromRGB(140, 140, 165)
+    sideBtn.TextSize = 9; sideBtn.AutoButtonColor = false; sideBtn.BorderSizePixel = 0
+    Instance.new("UICorner", sideBtn).CornerRadius = UDim.new(0, 7)
+    table.insert(ThemeRegistry.AllLabels, sideBtn)
+
+    local sidePill = Instance.new("Frame", sideBtn)
+    sidePill.BackgroundColor3 = GetThemeColor("Primary"); sidePill.BorderSizePixel = 0
+    sidePill.Size = UDim2.new(0, 3, 0.6, 0)
+    sidePill.Position = UDim2.new(0, 0, 0.5, 0); sidePill.AnchorPoint = Vector2.new(0, 0.5)
+    sidePill.ZIndex = 4; sidePill.Visible = false
+    Instance.new("UICorner", sidePill).CornerRadius = UDim.new(1, 0)
+    RegisterThemeElement("Indicators", sidePill)
+
+    local pageScroll = Instance.new("ScrollingFrame", ContentFrame)
+    pageScroll.BackgroundTransparency = 1; pageScroll.Size = UDim2.new(1, 0, 1, 0)
+    pageScroll.ScrollBarThickness = 3
+    pageScroll.ScrollBarImageColor3 = GetThemeColor("Primary")
+    pageScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageScroll.BorderSizePixel = 0; pageScroll.ZIndex = 4; pageScroll.Visible = false
+    local layout = Instance.new("UIListLayout", pageScroll)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder; layout.Padding = UDim.new(0, 6)
+
+    TabRegistry[tabName] = { Button=tabBtn, SideBtn=sideBtn, Page=pageScroll, Pill=Pill, SidePill=sidePill }
+    if langKey then
+        RegisterTranslation(langKey, tabBtn, "Text")
+        RegisterTranslation(langKey, sideBtn, "Text")
+    end
+    tabBtn.MouseButton1Click:Connect(function() SwitchTab(tabName) end)
+    sideBtn.MouseButton1Click:Connect(function() SwitchTab(tabName) end)
+    return pageScroll
+end
+
+local function ApplyTabMode(mode)
+    if mode == "Vertikal" then
+        TabBar.Visible = false; SideBar.Visible = true
+        ContentFrame.Position = UDim2.new(0, 96, 0, 54)
+        ContentFrame.Size = UDim2.new(1, -106, 1, -64)
+    else
+        TabBar.Visible = true; SideBar.Visible = false
+        ContentFrame.Position = UDim2.new(0, 10, 0, 96)
+        ContentFrame.Size = UDim2.new(1, -20, 1, -106)
+    end
+end
+
+-- Window Controls Logic
+BtnMin.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        -- Jika belum di-maximize, simpan ukuran saat ini sebagai ukuran normal
+        if not isWindowMaximized then normalSize = MainWindow.Size end
+        
+        -- Penentuan lebar saat minimize (Jika Maximize = Full layar, Jika Normal = Lebar saat itu)
+        local targetSize = isWindowMaximized 
+                           and UDim2.new(1, 0, 0, 46) 
+                           or UDim2.new(0, MainWindow.Size.X.Offset, 0, 46)
+        
+        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+        ContentFrame.Visible = false; TabBar.Visible = false; SideBar.Visible = false; ResizeHandle.Visible = false
+    else
+        -- Un-minimize (Kembalikan ke ukuran semula)
+        local targetSize = isWindowMaximized 
+                           and UDim2.new(1, 0, 1, 36) 
+                           or normalSize
+                           
+        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+        ContentFrame.Visible = true
+        if VisualConfig.TabMode == "Horizontal" then TabBar.Visible = true; SideBar.Visible = false
+        else TabBar.Visible = false; SideBar.Visible = true end
+        ResizeHandle.Visible = not isWindowMaximized
+    end
+end)
+
+BtnMax.MouseButton1Click:Connect(function()
+    if isMinimized then return end -- Cegah maximize saat sedang di-minimize
+    isWindowMaximized = not isWindowMaximized
+    if isWindowMaximized then
+        -- Simpan posisi & ukuran sebelum di-maximize
+        normalPos = MainWindow.Position; normalSize = MainWindow.Size
+        
+        -- [PERBAIKAN] Gunakan UDim2.new(1, 0, 1, 0) murni agar layar penuh presisi
+        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 1, 0), 
+            Position = UDim2.new(0, 0, 0, 0)
+        }):Play()
+        
+        -- Matikan lengkungan ujung saat fullscreen
+        local uiCorner = MainWindow:FindFirstChild("UICorner")
+        if uiCorner then uiCorner.CornerRadius = UDim.new(0, 0) end
+        ResizeHandle.Visible = false
+    else
+        -- Kembalikan ke posisi normal
+        TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+            Size = normalSize, 
+            Position = normalPos
+        }):Play()
+        
+        -- Nyalakan lagi lengkungan
+        local uiCorner = MainWindow:FindFirstChild("UICorner")
+        if uiCorner then uiCorner.CornerRadius = UDim.new(0, 12) end
+        ResizeHandle.Visible = true
+    end
+end)
+
+
+
+--------------------------------------------------------------------------------
+-- [S16] BACKGROUND EFFECTS
+--------------------------------------------------------------------------------
+local function ApplyBgEffect(effectName)
+    ClearBgEffect()
+    if effectName == "Nonaktif" then return end
+    
+    
+    local overlay = Instance.new("CanvasGroup", MainWindow)
+    overlay.BackgroundTransparency = 1; overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.ZIndex = 1; overlay.BorderSizePixel = 0; overlay.ClipsDescendants = true
+    ActiveBgEffect = overlay
+
+
+
+    if effectName == "Ambient Aura" then
+        local orbs = {}
+        for i = 1, 5 do
+            local sz = math.random(120, 200)
+            local orb = Instance.new("Frame", overlay)
+            orb.BackgroundColor3 = (i % 2 == 0) and GetThemeColor("Primary") or GetThemeColor("Secondary")
+            orb.AnchorPoint = Vector2.new(0.5, 0.5)
+            orb.Size = UDim2.fromOffset(sz, sz); orb.Position = UDim2.new(math.random(), 0, math.random(), 0)
+            orb.BorderSizePixel = 0; orb.ZIndex = 1; orb.BackgroundTransparency = 0.88
+            Instance.new("UICorner", orb).CornerRadius = UDim.new(1, 0)
+            table.insert(orbs, { frame=orb, pX=math.random()*math.pi*2, pY=math.random()*math.pi*2, sX=0.05+math.random()*0.05, sY=0.05+math.random()*0.05, bX=math.random(), bY=math.random(), pulse=0.3+math.random()*0.3, baseSize=sz })
+        end
+        ParticleTask = task.spawn(function()
+            while task.wait(0.03) do
+                if not overlay.Parent then break end
+                local t = tick()
+                for _, o in ipairs(orbs) do
+                    pcall(function()
+                        local cs = o.baseSize + (math.sin(t * o.pulse) * 30)
+                        o.frame.Position = UDim2.new(o.bX + math.sin(t * o.sX + o.pX) * 0.2, 0, o.bY + math.cos(t * o.sY + o.pY) * 0.2, 0)
+                        o.frame.Size = UDim2.fromOffset(cs, cs)
+                        o.frame.BackgroundTransparency = 0.85 + ((math.sin(t * o.pulse) + 1) / 2) * 0.1
+                    end)
+                end
+            end
+        end)
+    elseif effectName == "Nano Dust" then
+        local dusts = {}
+        for i = 1, 35 do
+            local d = Instance.new("Frame", overlay); local sz = math.random(1, 3)
+            d.BackgroundColor3 = GetThemeColor("Primary"); d.Size = UDim2.fromOffset(sz, sz)
+            d.Position = UDim2.new(math.random(), 0, math.random(), 0); d.BorderSizePixel = 0; d.ZIndex = 2
+            Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+            table.insert(dusts, { frame=d, speed=0.01+math.random()*0.03, swayS=0.5+math.random(), swayA=0.005+math.random()*0.015, phase=math.random()*math.pi*2, alphaOffset=math.random() })
+        end
+        ParticleTask = task.spawn(function()
+            while task.wait(0.03) do
+                if not overlay.Parent then break end
+                local t = tick()
+                for _, d in ipairs(dusts) do
+                    pcall(function()
+                        local y = d.frame.Position.Y.Scale - (d.speed * 0.03)
+                        if y < -0.05 then y = 1.05; d.frame.Position = UDim2.new(math.random(), 0, y, 0) end
+                        local x = d.frame.Position.X.Scale + math.sin(t * d.swayS + d.phase) * (d.swayA * 0.05)
+                        d.frame.Position = UDim2.new(x, 0, y, 0)
+                        d.frame.BackgroundTransparency = 0.3 + ((math.sin(t * 2 + d.alphaOffset) + 1) / 2) * 0.6
+                    end)
+                end
+            end
+        end)
+    elseif effectName == "Fluid Waves" then
+        local waves = {}
+        for i = 1, 3 do
+            local w = Instance.new("Frame", overlay)
+            w.BackgroundColor3 = i == 1 and GetThemeColor("Primary") or GetThemeColor("Secondary")
+            w.Size = UDim2.new(1.5, 0, 0.4, 0); w.AnchorPoint = Vector2.new(0.5, 0)
+            w.BorderSizePixel = 0; w.ZIndex = 1; w.BackgroundTransparency = 0.88 + (i * 0.02)
+            Instance.new("UICorner", w).CornerRadius = UDim.new(1, 0)
+            table.insert(waves, { frame=w, speed=0.3+(i*0.15), amp=0.05+(i*0.02), phase=i*2, baseH=0.85+(i*0.03) })
+        end
+        ParticleTask = task.spawn(function()
+            while task.wait(0.03) do
+                if not overlay.Parent then break end
+                local t = tick()
+                for _, w in ipairs(waves) do
+                    pcall(function()
+                        w.frame.Position = UDim2.new(0.5+math.sin(t*w.speed*0.5)*0.1, 0, w.baseH+math.sin(t*w.speed+w.phase)*w.amp, 0)
+                        w.frame.Rotation = math.sin(t*w.speed*0.3)*5
+                    end)
+                end
+            end
+        end)
+    elseif effectName == "Minimalist Dots" then
+        local dots = {}
+        for i = 1, 40 do
+            local d = Instance.new("Frame", overlay)
+            d.BackgroundColor3 = GetThemeColor("Primary"); d.Size = UDim2.fromOffset(2, 2)
+            d.Position = UDim2.new(math.random(), 0, math.random(), 0); d.BorderSizePixel = 0; d.ZIndex = 1; d.BackgroundTransparency = 0.7
+            Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+            table.insert(dots, { frame=d, speedX=0.001, speedY=0.001 })
+        end
+        ParticleTask = task.spawn(function()
+            while task.wait(0.03) do
+                if not overlay.Parent then break end
+                for _, d in ipairs(dots) do
+                    pcall(function()
+                        local nx = d.frame.Position.X.Scale + d.speedX; local ny = d.frame.Position.Y.Scale + d.speedY
+                        if nx > 1.05 then nx = -0.05 end; if ny > 1.05 then ny = -0.05 end
+                        d.frame.Position = UDim2.new(nx, 0, ny, 0)
+                    end)
+                end
+            end
+        end)
+    elseif effectName == "Glass Shards" then
+        local shards = {}
+        for i = 1, 8 do
+            local sz = math.random(30, 80)
+            local s = Instance.new("Frame", overlay); s.BackgroundTransparency = 1
+            s.Size = UDim2.fromOffset(sz, sz); s.Position = UDim2.new(math.random(), 0, math.random(), 0)
+            s.AnchorPoint = Vector2.new(0.5, 0.5); s.BorderSizePixel = 0; s.ZIndex = 1
+            Instance.new("UICorner", s).CornerRadius = UDim.new(0, 8)
+            local stroke = Instance.new("UIStroke", s)
+            stroke.Color = GetThemeColor("Primary"); stroke.Thickness = 1.5; stroke.Transparency = 0.8
+            table.insert(shards, { frame=s, rotSpeed=(math.random()>0.5 and 1 or -1)*(10+math.random()*20), driftX=(math.random()-0.5)*0.002, driftY=(math.random()-0.5)*0.002 })
+        end
+        ParticleTask = task.spawn(function()
+            while task.wait(0.03) do
+                if not overlay.Parent then break end
+                local dt = 0.03
+                for _, s in ipairs(shards) do
+                    pcall(function()
+                        s.frame.Rotation = s.frame.Rotation + (s.rotSpeed * dt)
+                        local nx = s.frame.Position.X.Scale + s.driftX; local ny = s.frame.Position.Y.Scale + s.driftY
+                        if nx < -0.1 then nx = 1.1 elseif nx > 1.1 then nx = -0.1 end
+                        if ny < -0.1 then ny = 1.1 elseif ny > 1.1 then ny = -0.1 end
+                        s.frame.Position = UDim2.new(nx, 0, ny, 0)
+                    end)
+                end
+            end
+        end)
+    end
+end
+
+local function ApplyBgColorTheme(bgName)
+    local colors = GUI_BACKGROUNDS[bgName] or GUI_BACKGROUNDS["Dark (Default)"]
+    pcall(function()
+        MainWindow.BackgroundColor3 = colors.Main
+        TopBar.BackgroundColor3 = colors.Header
+        TBFix.BackgroundColor3 = colors.Header
+        TabBar.BackgroundColor3 = colors.Header
+        SideBar.BackgroundColor3 = colors.Header
+    end)
+end
+
+
+--------------------------------------------------------------------------------
+-- [S16b] CONFIG SYSTEM PATCH — VISUAL SETTINGS SAVE / LOAD
+-- Di-patch DI SINI (setelah VisualConfig & semua fungsi Apply* terdefinisi)
+-- agar bisa diakses sebagai upvalue. ConfigSystem asli (S05) hanya menyimpan
+-- EngineConfig; patch ini menambahkan dukungan penuh untuk VisualConfig.
+--------------------------------------------------------------------------------
+
+-- Patch CustomNotify agar warna notifikasi mengikuti tema aktif
+CustomNotify = function(title, text, duration)
+    duration = duration or 3
+    local pri = GetThemeColor("Primary")
+    local W = Instance.new("Frame"); W.Parent=NC; W.BackgroundTransparency=1; W.Size=UDim2.new(0,260,0,60)
+    local NF = Instance.new("Frame"); NF.Parent=W; NF.BackgroundColor3=Color3.fromRGB(20,20,27)
+    NF.Size=UDim2.new(1,0,1,0); NF.Position=UDim2.new(1,50,0,0); NF.BackgroundTransparency=1
+    Instance.new("UICorner",NF).CornerRadius=UDim.new(0,6)
+    local Stroke=Instance.new("UIStroke",NF); Stroke.Color=pri; Stroke.Thickness=1.2; Stroke.Transparency=1
+    local Accent=Instance.new("Frame",NF); Accent.BackgroundColor3=pri
+    Accent.Size=UDim2.new(0,3,0,0); Accent.Position=UDim2.new(0,12,0.5,0); Accent.AnchorPoint=Vector2.new(0,0.5)
+    Accent.BackgroundTransparency=1; Instance.new("UICorner",Accent).CornerRadius=UDim.new(1,0)
+    local TL=Instance.new("TextLabel",NF); TL.BackgroundTransparency=1
+    TL.Size=UDim2.new(1,-34,0,20); TL.Position=UDim2.new(0,24,0,10)
+    TL.Font=Enum.Font.GothamBold; TL.Text=string.upper(title)
+    TL.TextColor3=pri; TL.TextSize=12; TL.TextXAlignment=Enum.TextXAlignment.Left; TL.TextTransparency=1
+    local BL=Instance.new("TextLabel",NF); BL.BackgroundTransparency=1
+    BL.Size=UDim2.new(1,-34,0,20); BL.Position=UDim2.new(0,24,0,30)
+    BL.Font=Enum.Font.Gotham; BL.Text=text
+    BL.TextColor3=Color3.fromRGB(200,200,200); BL.TextSize=11; BL.TextXAlignment=Enum.TextXAlignment.Left; BL.TextTransparency=1
+    local ti=TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.Out)
+    TweenService:Create(NF,ti,{Position=UDim2.new(0,0,0,0),BackgroundTransparency=0.1}):Play()
+    TweenService:Create(Stroke,ti,{Transparency=0}):Play()
+    TweenService:Create(TL,ti,{TextTransparency=0}):Play()
+    TweenService:Create(BL,ti,{TextTransparency=0}):Play()
+    TweenService:Create(Accent,TweenInfo.new(0.5,Enum.EasingStyle.Back,Enum.EasingDirection.Out),
+        {Size=UDim2.new(0,3,1,-24),BackgroundTransparency=0}):Play()
+    task.delay(duration,function()
+        local to=TweenInfo.new(0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.In)
+        TweenService:Create(NF,to,{Position=UDim2.new(1,50,0,0),BackgroundTransparency=1}):Play()
+        TweenService:Create(Stroke,to,{Transparency=1}):Play()
+        TweenService:Create(TL,to,{TextTransparency=1}):Play()
+        TweenService:Create(BL,to,{TextTransparency=1}):Play()
+        TweenService:Create(W,to,{Size=UDim2.new(0,260,0,0)}):Play()
+        task.wait(0.4); W:Destroy()
+    end)
+end
+
+-- Terapkan SEMUA pengaturan visual sekaligus dari VisualConfig saat ini
+local function ApplyAllVisuals()
+    pcall(function()
+        ApplyBgColorTheme(VisualConfig.CurrentBg)
+        ApplyTheme()
+        ApplyFont()
+        ApplyToggleShape()
+        ApplyButtonShape()
+        ApplyTransparency()
+        ApplyTabMode(VisualConfig.TabMode)
+        ApplyBgEffect(VisualConfig.BgEffect)
+        CurrentLang = VisualConfig.Language or "Indonesia"
+        ApplyTranslations()
+    end)
+end
+
+-- Patch ConfigSystem.SaveNew — simpan EngineConfig + VisualConfig dalam 1 file
+ConfigSystem.SaveNew = function(name)
+    if name == "" or name == "None" then return false, "Nama tidak valid!" end
+    -- Salin VisualConfig (hindari menyimpan referensi fungsi)
+    local visualSnapshot = {}
+    for k, v in pairs(VisualConfig) do
+        if type(v) ~= "function" then visualSnapshot[k] = v end
+    end
+    local payload = { game = EngineConfig, visual = visualSnapshot }
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+    if not ok then return false, "Gagal encode." end
+    if pcall(writefile, FOLDER_NAME.."/"..name..".json", encoded) then return true
+    else return false, "I/O Error." end
+end
+-- Overwrite = SaveNew (tetap konsisten)
+ConfigSystem.OverwriteExisting = ConfigSystem.SaveNew
+
+-- Patch ConfigSystem.Load — muat EngineConfig + VisualConfig, lalu apply visual
+ConfigSystem.Load = function(name, callback)
+    if name == "None" then return false end
+    local path = FOLDER_NAME.."/"..name..".json"
+    if not isfile(path) then return false end
+    local rok, content = pcall(readfile, path)
+    if not (rok and content) then return false end
+    local dok, data = pcall(HttpService.JSONDecode, HttpService, content)
+    if not (dok and type(data) == "table") then return false end
+    -- Format baru: { game={...}, visual={...} }
+    -- Format lama (backwards compat): field EngineConfig langsung di root
+    local gameData   = data.game   or data
+    local visualData = data.visual or nil
+    -- Restore EngineConfig
+    for k, v in pairs(gameData) do
+        if EngineConfig[k] ~= nil then EngineConfig[k] = v end
+    end
+    -- Restore VisualConfig + terapkan visual secara otomatis
+    if visualData then
+        for k, v in pairs(visualData) do
+            if VisualConfig[k] ~= nil then VisualConfig[k] = v end
+        end
+        task.defer(ApplyAllVisuals)
+    end
+    if callback then callback() end
+    return true
+end
+
+
+--------------------------------------------------------------------------------
+-- [S17] TAB 1 — MAIN FARM
+--------------------------------------------------------------------------------
+local MainFarmPage = CreateTab("🏠 Farm", "tabFarm")
+
+CreateSection(MainFarmPage, "World", "secWorld")
+_G.WorldDropdown = CreateCycleUI(MainFarmPage, "🌍 World", WORLD_NAMES, EngineConfig.SelectedWorld, function(v)
+    EngineConfig.SelectedWorld = v
+end)
+
+CreateSection(MainFarmPage, "Farm Engine Control", "secFarmEngine")
+
+_G.AutoFarmToggle = CreateToggleUI(MainFarmPage, "🌾 Auto Farm", EngineConfig.AutoFarmActive, function(v)
+    EngineConfig.AutoFarmActive = v
+    if v then
+        if checkVictoryUi() then task.spawn(function() DisableAutoFarm("Victory aktif.") end)
+        else task.spawn(startFarmLoop) end
+    end
+end, "lblAutoFarm")
+ToggleControl = _G.AutoFarmToggle
+
+local _farmTargetApis = CreateMultiCheckUI(
+    MainFarmPage,
+    "Auto Farm Target  (aktif saat Auto Farm ON)",
+    {"🗡️ Monster", "📦 Chest", "🥚 Egg"},
+    {EngineConfig.FarmTargetMonster, EngineConfig.FarmTargetChest, EngineConfig.FarmTargetEgg},
+    {
+        function(v) EngineConfig.FarmTargetMonster = v end,
+        function(v) EngineConfig.FarmTargetChest = v end,
+        function(v) EngineConfig.FarmTargetEgg = v end,
+    }
+)
+_G.TargetMonsterToggle = _farmTargetApis[1]
+_G.TargetChestToggle   = _farmTargetApis[2]
+_G.TargetEggToggle     = _farmTargetApis[3]
+
+CreateSection(MainFarmPage, "Metode & Posisi Gerakan", "secMethodPos")
+_G.FarmMethodDropdown   = CreateCycleUI(MainFarmPage, "Metode", {"CFrame","Lerp"}, EngineConfig.FarmMethod, function(v) EngineConfig.FarmMethod = v end)
+_G.FarmPositionDropdown = CreateDropdownUI(MainFarmPage, "Posisi Farm", POSITION_MODES, EngineConfig.FarmPosition, function(v) EngineConfig.FarmPosition = v end, "lblPosition")
+
+CreateSection(MainFarmPage, "Skill Config", "secSkillCfg")
+
+_G.AutoAttackOnlyToggle = CreateToggleUI(MainFarmPage, "⚡ Kill Aura", EngineConfig.AutoAttackOnly, function(v) EngineConfig.AutoAttackOnly = v end, "lblKillAura")
+_G.AutoSkillToggle      = CreateToggleUI(MainFarmPage, "🎯 Enable Auto Skill", EngineConfig.AutoSkillActive, function(v)
+    EngineConfig.AutoSkillActive = v; if v then CustomNotify("⚔️ SKILL","Auto Skill AKTIF!",2) end
+end, "lblAutoSkill")
+
+local _skillApis = CreateMultiCheckUI(
+    MainFarmPage,
+    "Skill Aktif  (bisa pilih lebih dari 1)",
+    {"Skill 1","Skill 2","Skill U"},
+    {EngineConfig.SkillActive1, EngineConfig.SkillActive2, EngineConfig.SkillActiveU},
+    {
+        function(v) EngineConfig.SkillActive1 = v end,
+        function(v) EngineConfig.SkillActive2 = v end,
+        function(v) EngineConfig.SkillActiveU = v end,
+    }
+)
+_G.SkillActive1Toggle = _skillApis[1]
+_G.SkillActive2Toggle = _skillApis[2]
+_G.SkillActiveUToggle = _skillApis[3]
+
+CreateSection(MainFarmPage, "Weapon Switcher", "secWeapon")
+_G.AutoSwitchToggle = CreateToggleUI(MainFarmPage, "🎒 Auto Weapon Switcher (3s)", EngineConfig.AutoWeaponSwitchActive, function(v)
+    EngineConfig.AutoWeaponSwitchActive = v; if v then CustomNotify("🎒 WEAPON","Switcher AKTIF!",2) end
+end, "lblWeaponSwitch")
+
+CreateSection(MainFarmPage, "Utilities", "secUtils")
+_G.ReplayToggle = CreateToggleUI(MainFarmPage, "🔄 Auto Play Again", EngineConfig.AutoReplayActive, function(v) EngineConfig.AutoReplayActive = v end, "lblAutoReplay")
+
+local _AUTOEXEC_CODE = 'loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=soul_iron"))()'
+local _queue_teleport = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+_G.AutoExecuteToggle = CreateToggleUI(MainFarmPage, "⚡ Auto Exec on Server Hop/Rejoin", EngineConfig.AutoExecuteOnRejoin, function(state)
+    EngineConfig.AutoExecuteOnRejoin = state
+    if state then
+        if _queue_teleport then
+            _queue_teleport(_AUTOEXEC_CODE)
+            CustomNotify("⚡ AUTO EXEC AKTIF","Script akan otomatis jalan saat pindah server/rejoin.",4)
+        else
+            CustomNotify("❌ GAGAL","Executor kamu tidak mendukung queue_on_teleport.",4)
+        end
+    else CustomNotify("⚠️ INFO","Auto Execute dimatikan. Efektif setelah restart game.",4) end
+end, "lblAutoExec")
+
+
+--------------------------------------------------------------------------------
+-- [S18] TAB 2 — VECTOR CONFIG
+--------------------------------------------------------------------------------
+local VectorPage = CreateTab("⚙️ Vector", "tabVector")
+
+CreateSection(VectorPage, "Target Selector", "secTargetSel")
+local NormalDropdown = CreateCycleUI(VectorPage, "Normal Mob", GameLists.NormalNPCs, "None", function(v)
+    EngineConfig.SelectedNormalNpcId = (v ~= "None") and v or nil
+end, "lblWeaponSwitch")
+local BossDropdown = CreateCycleUI(VectorPage, "Boss Mob", GameLists.BossNPCs, "None", function(v)
+    EngineConfig.SelectedBossNpcId = (v ~= "None") and v or nil
+end, "lblAutoExec")
+CreateButton(VectorPage, "🔄 Scan Map Targets", function()
+    local normalIds, bossIds = {"None"}, {"None"}
+    local ef = Workspace:FindFirstChild("EnemyNpc")
+    if ef then
+        local cn, cb = {}, {}
+        for _, m in ipairs(ef:GetChildren()) do
+            local id = CombatEngine.GetNpcId(m)
+            if id and id ~= "" then
+                if CombatEngine.GetLevelType(m) == "boss" then
+                    if not cb[id] then cb[id] = true; table.insert(bossIds, id) end
+                else
+                    if not cn[id] then cn[id] = true; table.insert(normalIds, id) end
+                end
+            end
+        end
+    end
+    GameLists.NormalNPCs = normalIds; GameLists.BossNPCs = bossIds
+    NormalDropdown:SetValues(normalIds); BossDropdown:SetValues(bossIds)
+    CustomNotify("Scan","Target disinkronkan.",2)
+end, "btnScanMap")
+
+CreateSection(VectorPage, "Dodge Boss", "secDodgeBoss")
+_G.RadiusInput = CreateInputUI(VectorPage, "Orbit Radius", EngineConfig.OrbitRadius, true, function(v) EngineConfig.OrbitRadius = tonumber(v) or 12 end)
+CreateButton(VectorPage, "🎯 Dodge Boss Skil (20)",  function() EngineConfig.OrbitRadius = 20;  _G.RadiusInput:SetValue(20)  end, "btnDodge20")
+CreateButton(VectorPage, "🎯 Dodge Boss Skil(200)", function() EngineConfig.OrbitRadius = 200; _G.RadiusInput:SetValue(200) end, "btnDodge200")
+
+CreateSection(VectorPage, "Kinematic System Parameters", "secKinematic")
+_G.HeightInput       = CreateInputUI(VectorPage, "Height Normal Target (Y)", EngineConfig.StandHeight,        true,  function(v) EngineConfig.StandHeight        = tonumber(v) or 20    end)
+_G.BossHeightInput   = CreateInputUI(VectorPage, "Height Boss Target (Y)",   EngineConfig.BossHeight,         true,  function(v) EngineConfig.BossHeight          = tonumber(v) or 25    end)
+_G.SpeedInput        = CreateInputUI(VectorPage, "Orbit Speed",              EngineConfig.OrbitSpeed,         true,  function(v) EngineConfig.OrbitSpeed          = tonumber(v) or 5     end)
+_G.DelayInput        = CreateInputUI(VectorPage, "CFrame Delay",             EngineConfig.CFrameDelay,        false, function(v) EngineConfig.CFrameDelay         = tonumber(v) or 0.001 end)
+_G.MultiplierInput   = CreateInputUI(VectorPage, "Hit Multiplier",           EngineConfig.HitMultiplier,      true,  function(v) EngineConfig.HitMultiplier       = tonumber(v) or 1     end)
+_G.LerpAlphaInput    = CreateInputUI(VectorPage, "Lerp Alpha (0–1)",         EngineConfig.LerpAlpha,          false, function(v) EngineConfig.LerpAlpha           = math.clamp(tonumber(v) or 0.3, 0.01, 1) end)
+_G.SkillCooldownInput= CreateInputUI(VectorPage, "Skill Cooldown (s)",       EngineConfig.SkillCooldownDelay, false, function(v) EngineConfig.SkillCooldownDelay  = tonumber(v) or 0.5   end)
+
+
+--------------------------------------------------------------------------------
+-- [S19] TAB 3 — PROFILE
+--------------------------------------------------------------------------------
+local ProfilePage = CreateTab("💾 Profil", "tabProfile")
+CreateSection(ProfilePage, "Data Profiles", "secDataProfile")
+local selectedConfig = "None"; local newConfigName = ""
+
+local ConfigDropdown = CreateDropdownUI(ProfilePage, "Selected Profile", ConfigSystem.GetConfigList(), "None", function(v) selectedConfig = v end, "lblSelectedProfile")
+CreateInputUI(ProfilePage, "New Profile Name", "", false, function(v) newConfigName = tostring(v) end)
+
+local function RefreshConfigDropdown(selectName)
+    ConfigDropdown:SetValues(ConfigSystem.GetConfigList())
+    if selectName then ConfigDropdown:SetValue(selectName); selectedConfig = selectName end
+end
+
+CreateButton(ProfilePage, "➕ Save New Profile", function()
+    if newConfigName ~= "" then
+        local ok, err = ConfigSystem.SaveNew(newConfigName)
+        if ok then CustomNotify("CONFIG","'"..newConfigName.."' disimpan!",3); task.wait(0.05); RefreshConfigDropdown(newConfigName)
+        else CustomNotify("SAVE ERROR",err,4) end
+    else CustomNotify("CONFIG WARN","Ketik nama profile!",3) end
+end, "btnSaveProfile")
+CreateButton(ProfilePage, "📂 Load Profile", function()
+    if selectedConfig ~= "None" then
+        if ConfigSystem.Load(selectedConfig, function() SyncAllVisualUI() end) then CustomNotify("CONFIG","Dimuat: "..selectedConfig,3)
+        else CustomNotify("CONFIG ERROR","File tidak valid.",3) end
+    else CustomNotify("CONFIG WARN","Pilih profile!",3) end
+end, "btnLoadProfile")
+CreateButton(ProfilePage, "⚡ Set as Autoload", function()
+    if selectedConfig == "None" then CustomNotify("AUTOLOAD","Pilih profile!",3); return end
+    ConfigSystem.SaveAutoLoadPointer(selectedConfig)
+    CustomNotify("⚡ AUTOLOAD SET","'"..selectedConfig.."' autoload aktif.",3)
+end, "btnSetAutoload")
+CreateButton(ProfilePage, "❌ Reset Autoload", function()
+    ConfigSystem.SaveAutoLoadPointer("None"); CustomNotify("⚡ AUTOLOAD OFF","Autoload di-reset.",3)
+end, "btnResetAutoload")
+CreateButton(ProfilePage, "🔄 Overwrite Profile", function()
+    local target = (newConfigName ~= "") and newConfigName or selectedConfig
+    if target and target ~= "None" and target ~= "" then
+        local ok, err = ConfigSystem.OverwriteExisting(target)
+        if ok then CustomNotify("CONFIG","'"..target.."' ditimpa!",3); task.wait(0.05); RefreshConfigDropdown(target)
+        else CustomNotify("OVERWRITE ERROR",err,4) end
+    else CustomNotify("CONFIG WARN","Pilih profile valid!",3) end
+end, "btnOverwriteProfile")
+CreateButton(ProfilePage, "🗑️ Hapus Profile", function()
+    if selectedConfig ~= "None" then
+        if ConfigSystem.Delete(selectedConfig) then CustomNotify("CONFIG","Dihapus.",3); task.wait(0.05); RefreshConfigDropdown()
+        else CustomNotify("CONFIG ERROR","Gagal hapus.",3) end
+    else CustomNotify("CONFIG WARN","Pilih target!",3) end
+end, "btnDeleteProfile")
+
+CreateSection(ProfilePage, "System Guard", "secSystemGuard")
+_G.AntiAFKToggle = CreateToggleUI(ProfilePage, "🛡️ Anti-AFK", EngineConfig.AntiAFKActive, function(state)
+    EngineConfig.AntiAFKActive = state; local VU = Services.VirtualUser
+    if state then
+        if not getgenv().AntiAFK_Connection then
+            getgenv().AntiAFK_Connection = LocalPlayer.Idled:Connect(function()
+                VU:CaptureController(); VU:ClickButton2(Vector2.new())
+            end, "btnOverwriteProfile")
+        end; CustomNotify("GUARD","Anti-AFK aktif.",2)
+    else
+        if getgenv().AntiAFK_Connection then getgenv().AntiAFK_Connection:Disconnect(); getgenv().AntiAFK_Connection = nil end
+        CustomNotify("GUARD","Anti-AFK nonaktif.",2)
+    end
+end, "lblAntiAFK")
+_G.AntiPausedToggle = CreateToggleUI(ProfilePage, "⏳ Disable Gameplay Paused", EngineConfig.AntiPausedActive, function(state)
+    EngineConfig.AntiPausedActive = state
+    Services.GuiService:SetGameplayPausedNotificationEnabled(not state)
+    CustomNotify("GUARD", state and "Anti-Paused aktif." or "Nonaktif.", 2)
+end, "lblAntiPaused")
+
+
+--------------------------------------------------------------------------------
+-- [S20] TAB 4 — SELL
+--------------------------------------------------------------------------------
+local SellPage = CreateTab("💰 Jual", "tabSell")
+CreateSection(SellPage, "Inventory Management", "secInventory")
+
+local MainGui = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("MainGui")
+local EquipmentScroll = MainGui:FindFirstChild("ScreenBackpack") and MainGui.ScreenBackpack:FindFirstChild("InventoryFrame") and MainGui.ScreenBackpack.InventoryFrame:FindFirstChild("EquipmentContent") and MainGui.ScreenBackpack.InventoryFrame.EquipmentContent:FindFirstChild("ScrollingFrame")
+local OresScroll      = MainGui:FindFirstChild("ScreenEquipSell") and MainGui.ScreenEquipSell:FindFirstChild("SellFrame") and MainGui.ScreenEquipSell.SellFrame:FindFirstChild("OresContent") and MainGui.ScreenEquipSell.SellFrame.OresContent:FindFirstChild("ScrollingFrame")
+local MaterialsScroll = MainGui:FindFirstChild("ScreenEquipSell") and MainGui.ScreenEquipSell:FindFirstChild("SellFrame") and MainGui.ScreenEquipSell.SellFrame:FindFirstChild("MaterialContent") and MainGui.ScreenEquipSell.SellFrame.MaterialContent:FindFirstChild("ScrollingFrame")
+
+local BulkSelectedUUIDs = {}
+local SELL_CATEGORIES   = {"All","Weapon","Helmet","Breastplate","Ore","Material"}
+
+_G.SellCategoryDropdown = CreateDropdownUI(SellPage, "Kategori", SELL_CATEGORIES, EngineConfig.SellCategory, function(v) EngineConfig.SellCategory = v end, "lblSellCategory")
+
+local ItemResultContainer = Instance.new("ScrollingFrame", SellPage)
+ItemResultContainer.Name = "IRC"; ItemResultContainer.Size = UDim2.new(1, 0, 0, 200)
+ItemResultContainer.BackgroundTransparency = 1; ItemResultContainer.ScrollBarThickness = 3; ItemResultContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Instance.new("UIListLayout", ItemResultContainer).Padding = UDim.new(0, 5)
+
+local function sellSpesifikNamaItem(listUUIDs, tipeItem)
+    if not listUUIDs or #listUUIDs == 0 then return end
+    if tipeItem == "Material" then pcall(function() MaterialRE:FireServer("Sell", listUUIDs, {}) end)
+    elseif tipeItem == "Ore" then pcall(function() ForgeRF:InvokeServer("Sell", listUUIDs) end)
+    else pcall(function() EquipmentRE:FireServer("Sell", listUUIDs) end) end
+end
+
+local function runInventoryScanner(parentFrame, filterCategory)
+    for _, c in ipairs(parentFrame:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+    local db = {}; for _, cat in ipairs(SELL_CATEGORIES) do db[cat] = {} end
+    local function insertDB(cat, id, uuid, visual)
+        if not db[cat][id] then db[cat][id] = {Visual=visual,UUIDs={},OriginalCategory=cat} end
+        table.insert(db[cat][id].UUIDs, uuid)
+        if not db["All"][id] then db["All"][id] = {Visual=visual,UUIDs={},OriginalCategory=cat} end
+        table.insert(db["All"][id].UUIDs, uuid)
+    end
+    if EquipmentScroll then
+        for _, slot in ipairs(EquipmentScroll:GetChildren()) do
+            if slot:IsA("GuiObject") and slot.Name ~= "UIListLayout" and slot.Name ~= "UIPadding" then
+                local vis = slot.Name; local nl = slot:FindFirstChild("ItemName",true) or slot:FindFirstChild("Name",true)
+                if nl and nl:IsA("TextLabel") then vis = nl.Text end
+                local uuid = slot:GetAttribute("UUID") or slot.Name
+                local uo = slot:FindFirstChild("UUID",true)
+                if uo then uuid = uo:IsA("ValueBase") and uo.Value or uo.Text end
+                local check = string.lower(vis.." "..slot.Name); local cat = "Weapon"
+                if check:find("body") or check:find("plate") or check:find("armor") then cat = "Breastplate"
+                elseif check:find("helm") or check:find("head") or check:find("hat") then cat = "Helmet" end
+                insertDB(cat, vis, uuid, vis)
+            end
+        end
+    end
+    local function scrapeStackables(sg, cn)
+        if not sg then return end
+        for _, slot in ipairs(sg:GetChildren()) do
+            if slot:IsA("GuiObject") and slot.Name ~= "UIListLayout" and slot.Name ~= "UIPadding" then
+                local idAsli = slot.Name; local io = slot:FindFirstChild("ID",true)
+                if io then idAsli = io:IsA("ValueBase") and tostring(io.Value) or io.Text end
+                local nl = slot:FindFirstChild("ItemName",true) or slot:FindFirstChild("Name",true)
+                local vis = idAsli; if nl and nl:IsA("TextLabel") then vis = nl.Text end
+                insertDB(cn, idAsli, idAsli, vis)
+            end
+        end
+    end
+    scrapeStackables(OresScroll, "Ore"); scrapeStackables(MaterialsScroll, "Material")
+    for targetID, dataObj in pairs(db[filterCategory]) do
+        local storageKey = dataObj.OriginalCategory.."_"..targetID
+        if (dataObj.OriginalCategory=="Ore" or dataObj.OriginalCategory=="Material") and EngineConfig.AutoSellStaticList[storageKey] then
+            BulkSelectedUUIDs[storageKey] = {UUIDs=dataObj.UUIDs,Type=dataObj.OriginalCategory}
+        end
+        local totalItem = #dataObj.UUIDs; local btnText = dataObj.Visual.." [x"..totalItem.."]"
+        local ItemBtn = Instance.new("TextButton", parentFrame)
+        ItemBtn.Name = "IR"; ItemBtn.Size = UDim2.new(1,-10,0,32); ItemBtn.Font = Enum.Font.GothamMedium; ItemBtn.TextSize = 12
+        ItemBtn.TextXAlignment = Enum.TextXAlignment.Left; ItemBtn.TextColor3 = Color3.fromRGB(255,255,255); ItemBtn.BorderSizePixel = 0
+        Instance.new("UICorner", ItemBtn).CornerRadius = UDim.new(0, 6)
+        local function refreshBtnVis()
+            if BulkSelectedUUIDs[storageKey] then ItemBtn.BackgroundColor3 = Color3.fromRGB(40,90,50); ItemBtn.Text = "  ✅ "..btnText
+            else ItemBtn.BackgroundColor3 = Color3.fromRGB(28,28,40); ItemBtn.Text = "  • "..btnText end
+        end
+        refreshBtnVis()
+        ItemBtn.MouseButton1Click:Connect(function()
+            if BulkSelectedUUIDs[storageKey] then
+                BulkSelectedUUIDs[storageKey] = nil
+                if dataObj.OriginalCategory=="Ore" or dataObj.OriginalCategory=="Material" then EngineConfig.AutoSellStaticList[storageKey] = nil end
+            else
+                BulkSelectedUUIDs[storageKey] = {UUIDs=dataObj.UUIDs,Type=dataObj.OriginalCategory}
+                if dataObj.OriginalCategory=="Ore" or dataObj.OriginalCategory=="Material" then EngineConfig.AutoSellStaticList[storageKey] = true end
+            end; refreshBtnVis()
+        end)
+    end
+end
+
+CreateButton(SellPage, "🔄 Scan Inventory", function()
+    runInventoryScanner(ItemResultContainer, EngineConfig.SellCategory)
+    CustomNotify("SCANNER","Kategori: "..EngineConfig.SellCategory,2)
+end, "btnScanInventory")
+CreateButton(SellPage, "💰 Execute Sell", function()
+    local eq, ore, mat, cnt = {},{},{},0
+    for _, d in pairs(BulkSelectedUUIDs) do
+        for _, uuid in ipairs(d.UUIDs) do
+            if d.Type=="Material" then table.insert(mat,uuid)
+            elseif d.Type=="Ore" then table.insert(ore,uuid)
+            else table.insert(eq,uuid) end; cnt = cnt+1
+        end
+    end
+    if cnt == 0 then CustomNotify("SELL WARN","Tidak ada item!",3); return end
+    if #eq  > 0 then sellSpesifikNamaItem(eq,"Equipment") end
+    if #ore > 0 then sellSpesifikNamaItem(ore,"Ore") end
+    if #mat > 0 then sellSpesifikNamaItem(mat,"Material") end
+    task.wait(0.5); BulkSelectedUUIDs = {}
+    runInventoryScanner(ItemResultContainer, EngineConfig.SellCategory)
+    CustomNotify("SELL","Jual massal ("..cnt.." item) selesai.",3)
+end, "btnExecuteSell")
+
+CreateSection(SellPage, "Merchant System", "secMerchant")
+CreateButton(SellPage, "🛒 Buka Merchant", function()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp  = char:WaitForChild("HumanoidRootPart"); local prompt = nil
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local txt = (v.ObjectText..v.ActionText):lower()
+            if v.Parent.Name:lower():match("merchant") or txt:match("merchant") or v.Parent.Name:lower():match("shop") or txt:match("shop") then
+                prompt = v; break end
+        end
+    end
+    if prompt and prompt.Parent:IsA("BasePart") then
+        CombatEngine.ResetPhysics(hrp); hrp.CFrame = prompt.Parent.CFrame*CFrame.new(0,2,0); task.wait(0.3)
+        if fireproximityprompt then fireproximityprompt(prompt); CustomNotify("MERCHANT","Terbuka!",3)
+        else CustomNotify("WARN","Executor tidak support fireproximityprompt",3) end
+    else CustomNotify("MERCHANT ERROR","Gagal menemukan Merchant!",4) end
+end, "btnOpenMerchant")
+
+
+--------------------------------------------------------------------------------
+-- [S21] TAB 5 — ROOM HUB
+--------------------------------------------------------------------------------
+local RoomPage = CreateTab("🚪 Room", "tabRoom")
+CreateSection(RoomPage, "Matchmaking Control", "secMatchmake")
+
+local sLblCon = Instance.new("Frame", RoomPage); sLblCon.BackgroundColor3 = Color3.fromRGB(22,22,35)
+sLblCon.Size = UDim2.new(1,0,0,32); sLblCon.BorderSizePixel = 0; Instance.new("UICorner",sLblCon).CornerRadius = UDim.new(0,8)
+local statusLbl = Instance.new("TextLabel",sLblCon); statusLbl.Size = UDim2.new(1,0,1,0)
+statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.GothamBold; statusLbl.TextSize = 11
+
+local RoomMapping = {
+    World1={"Room1","Room2","Room3","Room4"}, World2={"Room1","Room2","Room3","Room4"},
+    World3={"Room1","Room2","Room3","Room4"}, Cave1={"Room5","Room6","Room7","Room8"},
+    Cave2={"Room5","Room6","Room7","Room8"},  Cave3={"Room5","Room6","Room7","Room8"},
+    Season1={"Room9","Room10","Room11","Room12"},
+}
+
+local function buildModeList(isCave, modeType)
+    local list = {}
+    if isCave then for i=1,4 do table.insert(list,getModeLabel(i)) end
+    elseif modeType=="Hell" then for i=6,10 do table.insert(list,getModeLabel(i)) end
+    else for i=1,5 do table.insert(list,getModeLabel(i)) end end
+    return list
+end
+
+local function getModeNumber(labelStr)
+    local n = tonumber(labelStr:match("^(%d+)")); return n or 1
+end
+
+local RoomModeTypeDropdown = nil
+local RoomModeDropdown     = nil
+local RoomTargetDropdown   = nil
+
+local function updateModeDropdown(worldDisplay, modeType)
+    local cave = isCaveWorld(worldDisplay); local list = buildModeList(cave, modeType)
+    if RoomModeDropdown then RoomModeDropdown:SetValues(list) end
+    EngineConfig.RoomMode = getModeNumber(list[1])
+end
+
+_G.RoomWorldDropdown = CreateDropdownUI(RoomPage, "World", ROOM_WORLD_DISPLAY, EngineConfig.RoomWorldDisplay, function(val)
+    EngineConfig.RoomWorldDisplay = val
+    local key = ROOM_WORLD_KEY[val] or "World1"
+    local cave = isCaveWorld(val); local modeType = cave and "Normal" or EngineConfig.RoomModeType
+    if cave then EngineConfig.RoomModeType = "Normal"; if RoomModeTypeDropdown then RoomModeTypeDropdown:SetValue("Normal") end end
+    updateModeDropdown(val, modeType)
+    local rooms = RoomMapping[key] or {"Room1"}
+    if RoomTargetDropdown then RoomTargetDropdown:SetValues(rooms); EngineConfig.RoomTarget = rooms[1] end
+    statusLbl.Text = val.." — Mode "..EngineConfig.RoomMode; statusLbl.TextColor3 = Color3.fromRGB(96,205,255)
+    task.spawn(function() pcall(function() WorldPlaceRE:FireServer("SelectWorld",key,EngineConfig.RoomMode) end) end)
+end, "lblRoomWorld")
+
+RoomModeTypeDropdown = CreateDropdownUI(RoomPage, "Mode Type", {"Normal","Hell"}, EngineConfig.RoomModeType, function(val)
+    EngineConfig.RoomModeType = val; updateModeDropdown(EngineConfig.RoomWorldDisplay,val)
+end, "lblModeType")
+_G.RoomModeTypeDropdown = RoomModeTypeDropdown
+
+local initModeList = buildModeList(isCaveWorld(EngineConfig.RoomWorldDisplay),EngineConfig.RoomModeType)
+RoomModeDropdown = CreateDropdownUI(RoomPage, "Mode", initModeList, getModeLabel(EngineConfig.RoomMode), function(val)
+    EngineConfig.RoomMode = getModeNumber(val)
+    statusLbl.Text = EngineConfig.RoomWorldDisplay.." — Mode "..EngineConfig.RoomMode
+    statusLbl.TextColor3 = EngineConfig.RoomMode<=5 and Color3.fromRGB(0,255,127) or Color3.fromRGB(255,64,64)
+    task.spawn(function()
+        local key = ROOM_WORLD_KEY[EngineConfig.RoomWorldDisplay] or "World1"
+        pcall(function() WorldPlaceRE:FireServer("SelectWorld",key,EngineConfig.RoomMode) end)
+    end, "lblMode")
+end)
+_G.RoomModeDropdown = RoomModeDropdown
+
+_G.RoomPlayersDropdown = CreateDropdownUI(RoomPage, "Jumlah Player", {1,2,3,4}, EngineConfig.RoomPlayers, function(val)
+    EngineConfig.RoomPlayers = tonumber(val)
+end, "lblPlayers")
+
+local initRooms = RoomMapping[ROOM_WORLD_KEY[EngineConfig.RoomWorldDisplay] or "World1"] or {"Room1"}
+RoomTargetDropdown = CreateDropdownUI(RoomPage, "Target Room", initRooms, EngineConfig.RoomTarget or initRooms[1], function(val)
+    EngineConfig.RoomTarget = val
+end, "lblTargetRoom")
+_G.RoomTargetDropdown = RoomTargetDropdown
+
+statusLbl.Text = EngineConfig.RoomWorldDisplay.." — Mode "..EngineConfig.RoomMode
+statusLbl.TextColor3 = EngineConfig.RoomMode<=5 and Color3.fromRGB(0,255,127) or Color3.fromRGB(255,64,64)
+
+CreateSection(RoomPage, "Match Actions", "secMatchActions")
+CreateButton(RoomPage, "🛠️ Create Room", function()
+    local key = ROOM_WORLD_KEY[EngineConfig.RoomWorldDisplay] or "World1"
+    pcall(function()
+        GameMatchRE:FireServer("CreatRoom",key,EngineConfig.RoomMode,EngineConfig.RoomPlayers)
+        CustomNotify("MATCHMAKING","Room: "..EngineConfig.RoomWorldDisplay.." [M:"..EngineConfig.RoomMode.."]",3)
+    end, "btnCreateRoom")
+end)
+CreateButton(RoomPage, "🚀 TP Room", function()
+    local targetRoom = EngineConfig.RoomTarget or "Room1"
+    local mrf = Workspace:FindFirstChild("MatchRoom"); local rf = mrf and mrf:FindFirstChild(targetRoom)
+    local tm = rf and rf:FindFirstChild("Touch"); local tp = tm and tm:FindFirstChild("Part")
+    if tp and tp:IsA("BasePart") then
+        local char = LocalPlayer.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then CombatEngine.ResetPhysics(hrp); hrp.CFrame = tp.CFrame; CustomNotify("ROOM TP","Ke "..targetRoom,3) end
+    else CustomNotify("ROOM ERROR","Room '"..targetRoom.."' tidak ditemukan!",4) end
+end, "btnTPRoom")
+CreateButton(RoomPage, "🚪 Leave Room", function()
+    pcall(function() GameMatchRE:FireServer("LeaveRoom") end)
+    CustomNotify("ROOM","Leave Room dikirim.",2)
+end, "btnLeaveRoom")
+
+
+--------------------------------------------------------------------------------
+-- [S22] TAB 6 — AUTO BUY
+--------------------------------------------------------------------------------
+local BuyPage = CreateTab("🛒 Auto Buy", "tabBuy")
+CreateSection(BuyPage, "Gold Shop Auto-Buyer", "secGoldShop")
+
+-- Kategori aktif: "Gold", "Bond", atau "Both"
+local BuyCategory = "Gold"
+
+-- Pilihan kategori (tab mini)
+local CatFrame = Instance.new("Frame", BuyPage)
+CatFrame.Size = UDim2.new(1,0,0,30); CatFrame.BackgroundTransparency = 1
+local CatLayout = Instance.new("UIListLayout", CatFrame)
+CatLayout.FillDirection = Enum.FillDirection.Horizontal
+CatLayout.Padding = UDim.new(0,4); CatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local catButtons = {}
+-- [UPDATE] Menambahkan dukungan 'langKey' untuk Auto-Translate
+local function makeCatBtn(label, cat, langKey)
+    local b = Instance.new("TextButton", CatFrame)
+    b.Size = UDim2.new(0,80,1,0); b.BorderSizePixel = 0
+    b.Font = Enum.Font.GothamMedium; b.TextSize = 11
+    b.TextColor3 = Color3.fromRGB(255,255,255)
+    b.BackgroundColor3 = cat == BuyCategory and Color3.fromRGB(40,100,180) or Color3.fromRGB(35,35,55)
+    b.Text = label
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0,5)
+    catButtons[cat] = b
+    
+    -- Mendaftarkan tombol ini ke S10 Translate System
+    if langKey then RegisterTranslation(langKey, b, "Text") end
+
+    b.MouseButton1Click:Connect(function()
+        BuyCategory = cat
+        for k, cb in pairs(catButtons) do
+            cb.BackgroundColor3 = k == cat and Color3.fromRGB(40,100,180) or Color3.fromRGB(35,35,55)
+        end
+    end)
+end
+
+-- Menyisipkan langKey ke masing-masing tombol
+makeCatBtn("💰 Grocery",  "Gold", "btnCatGrocery")
+makeCatBtn("💎 Bond Shop", "Bond", "btnCatBond")
+makeCatBtn("🌐 All",  "Both", "btnCatAll")
+
+local BuyButtonsRef = {}
+local ShopListContainer = Instance.new("ScrollingFrame", BuyPage)
+ShopListContainer.Name = "SLC"; ShopListContainer.Size = UDim2.new(1,0,0,200); ShopListContainer.BackgroundTransparency = 1
+ShopListContainer.ScrollBarThickness = 3; ShopListContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local SLL = Instance.new("UIListLayout",ShopListContainer); SLL.Padding = UDim.new(0,4); SLL.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- [UPDATE] Menyisipkan "lblEnableAutoBuy" di akhir parameter untuk auto translate
+_G.AutoBuyToggle = CreateToggleUI(BuyPage, "🛒 Enable Multi Auto-Buy", EngineConfig.AutoBuyActive, function(v)
+    local cnt = 0; for _ in pairs(EngineConfig.AutoBuyTargetList) do cnt = cnt+1 end
+    if v and cnt == 0 then CustomNotify("AUTO BUY WARN","Pilih item dulu!",3); EngineConfig.AutoBuyActive = false; _G.AutoBuyToggle:SetValue(false); return end
+    if v and not FindGoldShopScrollingFrame() then CustomNotify("AUTO BUY WARN","Buka toko dulu!",3); EngineConfig.AutoBuyActive = false; _G.AutoBuyToggle:SetValue(false); return end
+    EngineConfig.AutoBuyActive = v; CustomNotify("AUTO BUY", v and ("Berjalan! ("..cnt.." item)") or "Dimatikan.",2)
+end, "lblEnableAutoBuy")
+
+CreateButton(BuyPage, "🔄 Scan Shop", function()
+    for _, c in ipairs(ShopListContainer:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+    table.clear(BuyButtonsRef)
+
+    local sf = FindGoldShopScrollingFrame()
+    if not sf then
+        local pgui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mainGui = pgui and pgui:FindFirstChild("MainGui")
+        local screen  = mainGui and mainGui:FindFirstChild("ScreenConsumableShop")
+        local content  = screen and screen:FindFirstChild("Content")
+        print("[XIFIL BUY] DEBUG PATH:")
+        print("  PlayerGui =", pgui and pgui.Name or "NIL")
+        print("  MainGui   =", mainGui and mainGui.Name or "NIL")
+        print("  Screen    =", screen and screen.Name or "NIL")
+        print("  Content   =", content and content.Name or "NIL")
+        if content then
+            for _, ch in ipairs(content:GetChildren()) do print("  Content child:", ch.Name, ch.ClassName) end
+        end
+        CustomNotify("ERROR","Toko tidak ditemukan! Cek Output.",5)
+        return
+    end
+
+    local allChildren = sf:GetChildren()
+    local total = 0
+    local prefixes = {}
+    if BuyCategory == "Gold" or BuyCategory == "Both" then table.insert(prefixes, "Gold_GoldShop") end
+    if BuyCategory == "Bond" or BuyCategory == "Both" then table.insert(prefixes, "Bond_BondShop") end
+
+    for _, item in ipairs(allChildren) do
+        local match = false
+        for _, pfx in ipairs(prefixes) do
+            if item.Name:find(pfx) then match = true; break end
+        end
+        if match then
+            local stockTXT = item:FindFirstChild("StockTXT", true)
+            local nameTXT  = item:FindFirstChild("NameTXT",  true)
+            local stok = tonumber(stockTXT and stockTXT.Text:match("%d+")) or 0
+            local displayName = (nameTXT and nameTXT.Text ~= "") and nameTXT.Text or item.Name
+            local badge = item.Name:find("Gold_GoldShop") and "💰" or "💎"
+            total = total + 1
+            
+            local btn = Instance.new("TextButton", ShopListContainer)
+            btn.Size = UDim2.new(1,-10,0,30)
+            btn.Font = Enum.Font.GothamMedium; btn.TextSize = 11
+            btn.TextXAlignment = Enum.TextXAlignment.Left; btn.BorderSizePixel = 0
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0,6)
+            
+            -- Tampilan awal saat discan
+            if stok == 0 or stok == 10 then
+                btn.Text = "  ❌ " .. badge .. " " .. displayName .. "  [OUT OF STOCK]"
+            else
+                btn.Text = "  " .. badge .. " " .. displayName .. "  [" .. stok .. "]"
+            end
+            
+            btn.BackgroundColor3 = EngineConfig.AutoBuyTargetList[item.Name] and Color3.fromRGB(30,100,50) or Color3.fromRGB(28,28,40)
+            btn.TextColor3 = Color3.fromRGB(255,255,255)
+            
+            btn.MouseButton1Click:Connect(function()
+                if EngineConfig.AutoBuyTargetList[item.Name] then
+                    EngineConfig.AutoBuyTargetList[item.Name] = nil
+                    btn.BackgroundColor3 = Color3.fromRGB(28,28,40)
+                else
+                    EngineConfig.AutoBuyTargetList[item.Name] = true
+                    btn.BackgroundColor3 = Color3.fromRGB(30,100,50)
+                end
+            end)
+            
+            BuyButtonsRef[item.Name] = { 
+                Button = btn, 
+                Name = displayName, 
+                Badge = badge 
+            }
+        end
+    end
+
+    if total == 0 then
+        CustomNotify("SCAN","0 item cocok. Cek nama di Output!",5)
+    else
+        CustomNotify("SHOP","Memuat "..total.." item ("..BuyCategory..").",3)
+    end
+end, "btnScanGoldShop")
+
+-- Background Loop untuk Update Stok Real-time (Anti Geser & Warna Aman)
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if EngineConfig.AutoBuyActive and BuyButtonsRef then
+            local sf = FindGoldShopScrollingFrame()
+            if sf then
+                for itemName, data in pairs(BuyButtonsRef) do
+                    local btn = data.Button
+                    if btn and btn.Parent then
+                        local item = sf:FindFirstChild(itemName)
+                        if item then
+                            local stockTXT = item:FindFirstChild("StockTXT", true)
+                            local stok = tonumber(stockTXT and stockTXT.Text:match("%d+")) or 0
+                            
+                            -- Menggunakan data asli dari tabel, teks dipastikan tidak menumpuk/bergeser
+                            if stok == 0 or stok == 10 then
+                                btn.Text = "  ❌ " .. data.Badge .. " " .. data.Name .. "  [OUT OF STOCK]"
+                            else
+                                btn.Text = "  " .. data.Badge .. " " .. data.Name .. "  [" .. stok .. "]"
+                            end
+                            
+                            -- Warna dikunci ketat ke status TargetList
+                            btn.BackgroundColor3 = EngineConfig.AutoBuyTargetList[itemName] and Color3.fromRGB(30,100,50) or Color3.fromRGB(28,28,40)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+
+
+--------------------------------------------------------------------------------
+-- [S23] TAB 7 — FORGE & UTILITIES
+--------------------------------------------------------------------------------
+local ForgePage = CreateTab("🔨 Forge", "tabForge")
+
+local ForgeUtil = require(Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Features"):WaitForChild("ForgeSystem"):WaitForChild("ForgeUtil"))
+if not _G.OriginalQTE then _G.OriginalQTE = ForgeUtil.QTE end
+ForgeUtil.QTE = function(...)
+    local args = {...}; local data = nil
+    for _, v in pairs(args) do if type(v) == "table" and v.UUID then data = v; break end end
+    if data then
+        task.spawn(function()
+            for _=1,1 do ForgeRF:InvokeServer("QTE",{UUID=data.UUID,Rating=15}); task.wait() end
+            for _=1,1 do ForgeRF:InvokeServer("ForgeFinish"); task.wait() end
+            for _=1,1 do ForgeRF:InvokeServer("ForgeResult",true); task.wait() end
+        end)
+    end; return _G.OriginalQTE(...)
+end
+
+CreateSection(ForgePage, "Forge Utilities", "secForgeUtil")
+CreateButton(ForgePage, "🚀 Bypass FORGE", function()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp  = char:WaitForChild("HumanoidRootPart"); local prompt = nil
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local txt = (v.ObjectText..v.ActionText):lower()
+            if v.Parent.Name:lower():match("forge") or txt:match("forge") or v.Parent.Name:lower():match("craft") or txt:match("craft") then
+                prompt = v; break end
+        end
+    end
+    if prompt and prompt.Parent:IsA("BasePart") then
+        CombatEngine.ResetPhysics(hrp); hrp.CFrame = prompt.Parent.CFrame*CFrame.new(0,2,0); task.wait(0.3)
+        if fireproximityprompt then fireproximityprompt(prompt) end
+    else CombatEngine.ResetPhysics(hrp); hrp.CFrame = CFrame.new(122.5,12,-45.8); task.wait(0.3) end
+    pcall(function()
+        local TaskRE = Services.ReplicatedStorage:WaitForChild("Framework"):WaitForChild("Features"):WaitForChild("TaskSystem"):WaitForChild("TaskRE")
+        TaskRE:FireServer("UpdateTaskProgress","OpenGUIWindow","ScreenForging")
+    end, "btnForgeBypass")
+    pcall(function()
+        local FUI = LocalPlayer.PlayerGui:FindFirstChild("ScreenForging") or LocalPlayer.PlayerGui:FindFirstChild("ForgeGui")
+        if FUI then for _, obj in pairs(FUI:GetChildren()) do if obj:IsA("Frame") then obj.Visible = true end end end
+    end, "btnForgeBypass")
+    CustomNotify("FORGE","TP & Bypass Berhasil.",3)
+end)
+
+local function TPAndOpenByKeyword(keywords, notifTitle)
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp  = char:WaitForChild("HumanoidRootPart"); local prompt = nil
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local txt = string.lower(v.ObjectText..v.ActionText..(v.Parent.Name)); local matched = false
+            for _, kw in ipairs(keywords) do if txt:find(kw) then matched = true; break end end
+            if matched then prompt = v; break end
+        end
+    end
+    if prompt and prompt.Parent:IsA("BasePart") then
+        CombatEngine.ResetPhysics(hrp); hrp.CFrame = prompt.Parent.CFrame*CFrame.new(0,2,0); task.wait(0.3)
+        if fireproximityprompt then fireproximityprompt(prompt); CustomNotify(notifTitle,"UI berhasil dibuka!",3)
+        else CustomNotify("WARN","Executor tidak support fireproximityprompt",3) end
+    else CustomNotify(notifTitle.." ERROR","NPC tidak ditemukan!",4) end
+end
+
+CreateSection(ForgePage, "NPC Utility Access", "secNpcUtil")
+CreateButton(ForgePage, "🔮 Open Enchantment & Runes",  function() TPAndOpenByKeyword({"enchant"},"ENCHANTMENT") end, "btnOpenEnchant")
+CreateButton(ForgePage, "🛒 Open Grocery",              function() TPAndOpenByKeyword({"grocery","grocer"},"GROCERY") end, "btnOpenGrocery")
+CreateButton(ForgePage, "🐾 Open Pet Upgrade",          function() TPAndOpenByKeyword({"pet","upgrade","petupgrade"},"PET UPGRADE") end, "btnOpenPetUpgrade")
+CreateButton(ForgePage, "🏕️ Open Pet Expedition",      function() TPAndOpenByKeyword({"expedition","petexp"},"PET EXPEDITION") end, "btnOpenPetExp")
+CreateButton(ForgePage, "✨ Open Upgrade Equipment",    function() TPAndOpenByKeyword({"bless","blessing"},"BLESS EQUIPMENT") end, "btnOpenBless")
+CreateButton(ForgePage, "✨ Open The Guide",            function() TPAndOpenByKeyword({"guide","the"},"THE GUIDE") end, "btnOpenGuide")
+
+
+--------------------------------------------------------------------------------
+-- [S24] TAB 8 — TAMPILAN
+--------------------------------------------------------------------------------
+local AppearPage = CreateTab("🎨 Tampilan", "tabAppear")
+
+CreateSection(AppearPage, "Warna Latar GUI", "secBgColor")
+_G.BgColorDropdown = CreateDropdownUI(AppearPage, "Background", BG_THEME_NAMES, VisualConfig.CurrentBg, function(v)
+    VisualConfig.CurrentBg = v; ApplyBgColorTheme(v)
+end, "lblBackground")
+
+CreateSection(AppearPage, "Tema Warna GUI", "secTheme")
+_G.ThemeColorDropdown = CreateDropdownUI(AppearPage, "🎨 Tema Warna", THEME_NAMES, VisualConfig.CurrentTheme, function(v)
+    VisualConfig.CurrentTheme = v; ApplyTheme()
+    CustomNotify("🎨 TEMA","Tema diubah ke: "..v,2)
+end, "lblTheme")
+
+CreateSection(AppearPage, "Transparansi", "secTransp")
+_G.TranspToggleUI = CreateToggleUI(AppearPage, "🌫️ Mode Transparan", VisualConfig.TransparentMode, function(v)
+    VisualConfig.TransparentMode = v; ApplyTransparency()
+    CustomNotify("🌫️ TRANSPARAN", v and "Aktif" or "Nonaktif", 2)
+end, "lblTranspMode")
+
+_G.TranspSliderUI = CreateSliderUI(AppearPage, "🔆 Level Transparansi", 0, 100, math.floor(VisualConfig.TransparencyLevel * 100), function(v)
+    VisualConfig.TransparencyLevel = v / 100
+    if VisualConfig.TransparentMode then ApplyTransparency() end
+end, "lblLevel")
+
+CreateSection(AppearPage, "Gesture & Open Button", "secGesture")
+_G.GestureModeDropdown = CreateDropdownUI(AppearPage, "🖐️ Mode Buka GUI", { "Classic", "Keybind [F]" }, VisualConfig.GestureMode, function(v)
+    VisualConfig.GestureMode = v; CustomNotify("🖐️ GESTURE","Mode buka: "..v,2)
+end, "lblGesture")
+
+CreateSection(AppearPage, "Mode Tab", "secTabMode")
+_G.TabModeDropdownUI = CreateDropdownUI(AppearPage, "📑 Orientasi Tab", { "Horizontal", "Vertikal" }, VisualConfig.TabMode, function(v)
+    VisualConfig.TabMode = v; ApplyTabMode(v)
+    CustomNotify("📑 TAB","Mode: "..v,2)
+end, "lblTabMode")
+
+CreateSection(AppearPage, "Bahasa / Translate", "secLang")
+_G.LangDropdownUI = CreateDropdownUI(AppearPage, "🌐 Bahasa", LANGUAGES, CurrentLang, function(v)
+    CurrentLang = v; VisualConfig.Language = v; ApplyTranslations()
+    CustomNotify("🌐 BAHASA","Bahasa: "..v,3)
+end, "lblLang")
+
+--------------------------------------------------------------------------------
+-- [S25] TAB 9 — FONT & BENTUK
+--------------------------------------------------------------------------------
+local FontPage = CreateTab("🔤 Font", "tabFont")
+
+CreateSection(FontPage, "Font GUI", "secFont")
+_G.FontDropdownUI = CreateDropdownUI(FontPage, "🔤 Pilihan Font", FONT_LIST, VisualConfig.CurrentFont, function(v)
+    VisualConfig.CurrentFont = v; ApplyFont()
+    CustomNotify("🔤 FONT","Font diubah ke: "..v,2)
+end, "lblFont")
+CreateSection(FontPage, "Pengaturan Ukuran Font", "secFontSize")
+-- FIX: Mengganti default text jadi angka 14 dan menambah parameter 'true' agar fungsi callback tidak tergeser (nil)
+_G.FontSizeInput = CreateInputUI(FontPage, "Ukuran Font (Default 14)", 14, true, function(v)
+    local num = tonumber(v)
+    if num then
+        VisualConfig.FontSize = num
+        ApplyFont() -- Panggil fungsi untuk update semua teks di GUI
+        CustomNotify("🔤SIZE FONT", "Ukuran diubah ke: "..num, 2)
+    end
+end)
+
+
+CreateSection(FontPage, "Bentuk Sakelar (Toggle)", "secToggle")
+_G.ToggleShapeDropdownUI = CreateDropdownUI(FontPage, "🔘 Bentuk Toggle", TOGGLE_SHAPES, VisualConfig.ToggleShape, function(v)
+    VisualConfig.ToggleShape = v; ApplyToggleShape()
+    CustomNotify("🔘 TOGGLE","Bentuk: "..v,2)
+end, "lblToggle")
+
+CreateSection(FontPage, "Bentuk Button Dropdown", "secBtnShape")
+_G.BtnShapeDropdownUI = CreateDropdownUI(FontPage, "🟦 Bentuk Button", BUTTON_SHAPES, VisualConfig.ButtonShape, function(v)
+    VisualConfig.ButtonShape = v; ApplyButtonShape()
+    CustomNotify("🟦 BUTTON","Bentuk: "..v,2)
+end, "lblBtnShape")
+
+--------------------------------------------------------------------------------
+-- [S26] TAB 10 — EFEK & ANIMASI
+--------------------------------------------------------------------------------
+local AnimPage = CreateTab("✨ Efek", "tabFx")
+
+CreateSection(AnimPage, "Gaya Animasi Buka/Tutup", "secAnimStyle")
+_G.AnimStyleDropdownUI = CreateDropdownUI(AnimPage, "✨ Animasi", ANIM_STYLES, VisualConfig.AnimStyle, function(v)
+    VisualConfig.AnimStyle = v; CustomNotify("✨ ANIMASI","Gaya animasi: "..v,2)
+end, "lblAnimStyle")
+
+CreateSection(AnimPage, "Efek Latar & Partikel", "secBgFx")
+_G.BgEffectDropdownUI = CreateDropdownUI(AnimPage, "🌟 Efek Latar", BG_EFFECTS, VisualConfig.BgEffect, function(v)
+    VisualConfig.BgEffect = v; ApplyBgEffect(v)
+    CustomNotify("🌟 EFEK","Efek latar: "..v,2)
+end, "lblBgFx")
+
+CreateSection(AnimPage, "Info", "secInfo")
+local infoLbl = Instance.new("TextLabel", AnimPage)
+infoLbl.BackgroundColor3 = Color3.fromRGB(18, 18, 28); infoLbl.Size = UDim2.new(1, 0, 0, 52)
+infoLbl.BorderSizePixel = 0; infoLbl.Font = Enum.Font.Gotham
+infoLbl.Text = "Partikel & efek berjalan secara real-time.\nUbah tema untuk menyesuaikan warna partikel."
+infoLbl.TextColor3 = Color3.fromRGB(130, 130, 155); infoLbl.TextSize = 10; infoLbl.TextWrapped = true
+Instance.new("UICorner", infoLbl).CornerRadius = UDim.new(0, 8)
+
+--------------------------------------------------------------------------------
+-- [S27] SYNC ALL VISUAL UI
+--------------------------------------------------------------------------------
+function SyncAllVisualUI()
+    pcall(function()
+        -- [1] SYNC DATA GAME (EngineConfig)
+        if _G.AutoFarmToggle        then _G.AutoFarmToggle:SetValue(EngineConfig.AutoFarmActive) end
+        if _G.TargetMonsterToggle   then _G.TargetMonsterToggle:SetValue(EngineConfig.FarmTargetMonster) end
+        if _G.TargetChestToggle     then _G.TargetChestToggle:SetValue(EngineConfig.FarmTargetChest) end
+        if _G.TargetEggToggle       then _G.TargetEggToggle:SetValue(EngineConfig.FarmTargetEgg) end
+        if _G.AutoAttackOnlyToggle  then _G.AutoAttackOnlyToggle:SetValue(EngineConfig.AutoAttackOnly) end
+        if _G.ReplayToggle          then _G.ReplayToggle:SetValue(EngineConfig.AutoReplayActive) end
+        if _G.WorldDropdown         then _G.WorldDropdown:SetValue(EngineConfig.SelectedWorld) end
+        if _G.FarmMethodDropdown    then _G.FarmMethodDropdown:SetValue(EngineConfig.FarmMethod) end
+        if _G.FarmPositionDropdown  then _G.FarmPositionDropdown:SetValue(EngineConfig.FarmPosition) end
+        if _G.LerpAlphaInput        then _G.LerpAlphaInput:SetValue(EngineConfig.LerpAlpha) end
+        if _G.AutoSkillToggle       then _G.AutoSkillToggle:SetValue(EngineConfig.AutoSkillActive) end
+        if _G.SkillActive1Toggle    then _G.SkillActive1Toggle:SetValue(EngineConfig.SkillActive1) end
+        if _G.SkillActive2Toggle    then _G.SkillActive2Toggle:SetValue(EngineConfig.SkillActive2) end
+        if _G.SkillActiveUToggle    then _G.SkillActiveUToggle:SetValue(EngineConfig.SkillActiveU) end
+        if _G.SkillCooldownInput    then _G.SkillCooldownInput:SetValue(EngineConfig.SkillCooldownDelay) end
+        if _G.AutoSwitchToggle      then _G.AutoSwitchToggle:SetValue(EngineConfig.AutoWeaponSwitchActive) end
+        if _G.HeightInput           then _G.HeightInput:SetValue(EngineConfig.StandHeight) end
+        if _G.BossHeightInput       then _G.BossHeightInput:SetValue(EngineConfig.BossHeight) end
+        if _G.RadiusInput           then _G.RadiusInput:SetValue(EngineConfig.OrbitRadius) end
+        if _G.SpeedInput            then _G.SpeedInput:SetValue(EngineConfig.OrbitSpeed) end
+        if _G.DelayInput            then _G.DelayInput:SetValue(EngineConfig.CFrameDelay) end
+        if _G.MultiplierInput       then _G.MultiplierInput:SetValue(EngineConfig.HitMultiplier) end
+        if _G.AntiAFKToggle         then _G.AntiAFKToggle:SetValue(EngineConfig.AntiAFKActive) end
+        if _G.AntiPausedToggle      then _G.AntiPausedToggle:SetValue(EngineConfig.AntiPausedActive) end
+        if _G.AutoExecuteToggle     then _G.AutoExecuteToggle:SetValue(EngineConfig.AutoExecuteOnRejoin) end
+        if _G.SellCategoryDropdown  then _G.SellCategoryDropdown:SetValue(EngineConfig.SellCategory) end
+        if _G.RoomWorldDropdown     then _G.RoomWorldDropdown:SetValue(EngineConfig.RoomWorldDisplay) end
+        if _G.RoomModeTypeDropdown  then _G.RoomModeTypeDropdown:SetValue(EngineConfig.RoomModeType) end
+        if _G.RoomTargetDropdown    then _G.RoomTargetDropdown:SetValue(EngineConfig.RoomTarget) end
+        if _G.AutoBuyToggle         then _G.AutoBuyToggle:SetValue(EngineConfig.AutoBuyActive) end
+
+        -- [2] SYNC DATA TAMPILAN / VISUAL (VisualConfig)
+        if _G.BgColorDropdown       then _G.BgColorDropdown:SetValue(VisualConfig.CurrentBg) end
+        if _G.ThemeColorDropdown    then _G.ThemeColorDropdown:SetValue(VisualConfig.CurrentTheme) end
+        if _G.TranspToggleUI        then _G.TranspToggleUI:SetValue(VisualConfig.TransparentMode) end
+        if _G.TranspSliderUI        then _G.TranspSliderUI:SetValue(math.floor(VisualConfig.TransparencyLevel * 100)) end
+        if _G.GestureModeDropdown   then _G.GestureModeDropdown:SetValue(VisualConfig.GestureMode) end
+        if _G.TabModeDropdownUI     then _G.TabModeDropdownUI:SetValue(VisualConfig.TabMode) end
+        if _G.LangDropdownUI        then _G.LangDropdownUI:SetValue(VisualConfig.Language) end
+        if _G.FontDropdownUI        then _G.FontDropdownUI:SetValue(VisualConfig.CurrentFont) end
+        if _G.ToggleShapeDropdownUI then _G.ToggleShapeDropdownUI:SetValue(VisualConfig.ToggleShape) end
+        if _G.BtnShapeDropdownUI    then _G.BtnShapeDropdownUI:SetValue(VisualConfig.ButtonShape) end
+        if _G.AnimStyleDropdownUI   then _G.AnimStyleDropdownUI:SetValue(VisualConfig.AnimStyle) end
+        if _G.BgEffectDropdownUI    then _G.BgEffectDropdownUI:SetValue(VisualConfig.BgEffect) end
+        if _G.FontSizeInput then 
+    _G.FontSizeInput:SetValue(tostring(VisualConfig.FontSize or 14)) 
+end
+    end)
+    
+    -- Terapkan semua setting visual setelah data sinkron
+    pcall(ApplyAllVisuals)
+end
+
+--------------------------------------------------------------------------------
+-- [S28] FLOATING TOGGLE BUTTON (Premium)
+--------------------------------------------------------------------------------
+local ToggleGuiBtn = Instance.new("ScreenGui", SafeParent)
+ToggleGuiBtn.Name = "XiFil_Toggle"; ToggleGuiBtn.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ToggleGuiBtn.ResetOnSpawn = false; ToggleGuiBtn.DisplayOrder = 999988
+RuntimeMaid:GiveTask(ToggleGuiBtn)
+
+local guiVisible = false
+local isToggling = false
+
+-- Memori untuk menyimpan status ukuran dan posisi terakhir GUI sebelum ditutup
+local savedSize = UDim2.new(0, VisualConfig.GuiWidth, 0, VisualConfig.GuiHeight)
+local savedPos = UDim2.new(0.5, -VisualConfig.GuiWidth/2, 0.5, -VisualConfig.GuiHeight/2)
+
+local function ToggleGUI()
+    if isToggling then return end -- ANTI-SPAM: Mencegah bug GUI mengecil/bergeser ke atas
+    isToggling = true
+    guiVisible = not guiVisible
+    local easingStyle = ANIM_MAP[VisualConfig.AnimStyle] or Enum.EasingStyle.Back
+    
+    if guiVisible then
+        MainWindow.Visible = true
+        MainWindow.Size = UDim2.new(0, 0, 0, 0)
+        MainWindow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        
+        TweenService:Create(MainWindow, TweenInfo.new(0.35, easingStyle, Enum.EasingDirection.Out), {
+            Size = savedSize,
+            Position = savedPos
+        }):Play()
+        task.wait(0.35)
+    else
+        -- Simpan state SAAT INI (sebelum animasi jalan)
+        savedSize = MainWindow.Size
+        savedPos = MainWindow.Position
+        
+        TweenService:Create(MainWindow, TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+        
+        task.wait(0.29)
+        MainWindow.Visible = false
+    end
+    isToggling = false
+end
+
+BtnClose.MouseButton1Click:Connect(function()
+    if guiVisible then ToggleGUI() end
+end)
+
+local BtnContainer = Instance.new("Frame", ToggleGuiBtn)
+BtnContainer.BackgroundTransparency = 1
+BtnContainer.Position = UDim2.new(0.05, 0, 0.15, 0)
+BtnContainer.Size = UDim2.fromOffset(110, 36); BtnContainer.Visible = false
+
+local floatGlow = Instance.new("Frame", BtnContainer)
+floatGlow.BackgroundColor3 = GetThemeColor("Primary"); floatGlow.BackgroundTransparency = 0.8
+floatGlow.Size = UDim2.new(1, 4, 1, 4); floatGlow.Position = UDim2.new(0.5,0,0.5,0)
+floatGlow.AnchorPoint = Vector2.new(0.5,0.5); floatGlow.BorderSizePixel = 0
+Instance.new("UICorner", floatGlow).CornerRadius = UDim.new(1, 0)
+RegisterThemeElement("Fills", { elem = floatGlow, _type = "primary" })
+
+local floatBtn = Instance.new("TextButton", BtnContainer)
+floatBtn.BackgroundColor3 = Color3.fromRGB(15,15,22)
+floatBtn.Size = UDim2.new(1,0,1,0); floatBtn.Position = UDim2.new(0.5,0,0.5,0)
+floatBtn.AnchorPoint = Vector2.new(0.5,0.5); floatBtn.Text = ""; floatBtn.AutoButtonColor = false; floatBtn.BorderSizePixel = 0
+Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(1, 0)
+local BtnStroke = Instance.new("UIStroke", floatBtn)
+BtnStroke.Color = GetThemeColor("Primary"); BtnStroke.Thickness = 1.2; BtnStroke.Transparency = 0.35
+RegisterThemeElement("Strokes", BtnStroke)
+
+local TextLayout = Instance.new("Frame", floatBtn); TextLayout.BackgroundTransparency = 1; TextLayout.Size = UDim2.new(1,0,1,0)
+local UIListL = Instance.new("UIListLayout", TextLayout)
+UIListL.FillDirection = Enum.FillDirection.Horizontal
+UIListL.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListL.VerticalAlignment = Enum.VerticalAlignment.Center
+UIListL.Padding = UDim.new(0, 4)
+
+local StatusDot = Instance.new("Frame", TextLayout)
+StatusDot.BackgroundColor3 = GetThemeColor("Primary"); StatusDot.Size = UDim2.fromOffset(6,6); StatusDot.BorderSizePixel = 0
+Instance.new("UICorner", StatusDot).CornerRadius = UDim.new(1,0)
+RegisterThemeElement("Fills", { elem = StatusDot, _type = "primary" })
+
+local BtnLabel = Instance.new("TextLabel", TextLayout)
+BtnLabel.BackgroundTransparency = 1; BtnLabel.Font = Enum.Font.GothamBlack; BtnLabel.Text = "XIFIL"
+BtnLabel.TextColor3 = Color3.fromRGB(255,255,255); BtnLabel.TextSize = 12; BtnLabel.AutomaticSize = Enum.AutomaticSize.X
+
+local BtnSubLabel = Instance.new("TextLabel", TextLayout)
+BtnSubLabel.BackgroundTransparency = 1; BtnSubLabel.Font = Enum.Font.GothamBold; BtnSubLabel.Text = "HUB"
+BtnSubLabel.TextColor3 = GetThemeColor("Primary"); BtnSubLabel.TextSize = 12; BtnSubLabel.AutomaticSize = Enum.AutomaticSize.X
+RegisterThemeElement("Texts", BtnSubLabel)
+
+-- ANIMASI HOVER EFEK
+floatBtn.MouseEnter:Connect(function()
+    TweenService:Create(floatGlow, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {BackgroundTransparency=0.5, Size=UDim2.new(1,10,1,10)}):Play()
+    TweenService:Create(floatBtn, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {BackgroundColor3=Color3.fromRGB(22,22,32)}):Play()
+    TweenService:Create(BtnStroke, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {Transparency=0}):Play()
+end)
+floatBtn.MouseLeave:Connect(function()
+    TweenService:Create(floatGlow, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {BackgroundTransparency=0.8, Size=UDim2.new(1,4,1,4)}):Play()
+    TweenService:Create(floatBtn, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {BackgroundColor3=Color3.fromRGB(15,15,22)}):Play()
+    TweenService:Create(BtnStroke, TweenInfo.new(0.3,Enum.EasingStyle.Quint), {Transparency=0.35}):Play()
+end)
+
+-- CUSTOM DRAG & CLICK LOGIC (Membedakan antara menggeser dan menekan)
+local draggingFloating = false
+local isMoved = false
+local dragStartPos = nil
+local startBtnPos = nil
+
+floatBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingFloating = true
+        isMoved = false
+        dragStartPos = input.Position
+        startBtnPos = BtnContainer.Position
+        
+        -- Efek ditekan
+        TweenService:Create(floatBtn, TweenInfo.new(0.15,Enum.EasingStyle.Quad), {Size=UDim2.new(0.9,0,0.9,0)}):Play()
+        TweenService:Create(floatGlow, TweenInfo.new(0.15,Enum.EasingStyle.Quad), {Size=UDim2.new(0.9,4,0.9,4)}):Play()
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingFloating and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStartPos
+        -- Jika mouse bergeser lebih dari 5 pixel, maka dianggap Drag (Bukan klik)
+        if delta.Magnitude > 5 then
+            isMoved = true 
+        end
+        BtnContainer.Position = UDim2.new(
+            startBtnPos.X.Scale, startBtnPos.X.Offset + delta.X,
+            startBtnPos.Y.Scale, startBtnPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if draggingFloating then
+            draggingFloating = false
+            
+            -- Efek dilepas
+            TweenService:Create(floatBtn, TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {Size=UDim2.new(1,0,1,0)}):Play()
+            TweenService:Create(floatGlow, TweenInfo.new(0.15,Enum.EasingStyle.Back,Enum.EasingDirection.Out), {Size=UDim2.new(1,10,1,10)}):Play()
+            
+            -- JIKA TIDAK DIGESER (Hanya diklik/Tap biasa), maka buka/tutup GUI
+            if not isMoved and VisualConfig.GestureMode == "Classic" then
+                ToggleGUI()
+            end
+        end
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if VisualConfig.GestureMode == "Keybind [F]" and input.KeyCode == Enum.KeyCode.F then ToggleGUI() end
+end)
+
+
+
+--------------------------------------------------------------------------------
+-- [S29] INTRO ANIMATION
+--------------------------------------------------------------------------------
+local function PlayIntroAnimation()
+    local IntroGui = Instance.new("ScreenGui", SafeParent)
+    IntroGui.Name = "XiFil_Intro"; IntroGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    IntroGui.ResetOnSpawn = false; IntroGui.DisplayOrder = 9999999; IntroGui.IgnoreGuiInset = true
+
+    local Overlay = Instance.new("Frame", IntroGui)
+    Overlay.BackgroundColor3 = Color3.fromRGB(6, 6, 12); Overlay.BackgroundTransparency = 1
+    Overlay.Size = UDim2.new(1, 0, 1, 0); Overlay.BorderSizePixel = 0; Overlay.ZIndex = 1
+
+    local Container = Instance.new("Frame", Overlay)
+    Container.BackgroundTransparency = 1; Container.AnchorPoint = Vector2.new(0.5, 0.5)
+    Container.Position = UDim2.new(0.5, 0, 0.5, 0); Container.Size = UDim2.fromOffset(220, 65)
+    Container.ClipsDescendants = true; Container.ZIndex = 2
+
+    local Line = Instance.new("Frame", Container)
+    Line.AnchorPoint = Vector2.new(0.5, 1); Line.Position = UDim2.new(0.5, 0, 0.95, 0)
+    Line.Size = UDim2.fromOffset(0, 2); Line.BackgroundColor3 = GetThemeColor("Primary")
+    Line.BorderSizePixel = 0; Line.ZIndex = 4
+    Instance.new("UICorner", Line).CornerRadius = UDim.new(1, 0)
+    local LineGlow = Instance.new("Frame", Line)
+    LineGlow.BackgroundColor3 = GetThemeColor("Primary"); LineGlow.BackgroundTransparency = 0.6
+    LineGlow.AnchorPoint = Vector2.new(0.5, 0.5); LineGlow.Position = UDim2.new(0.5, 0, 0.5, 0)
+    LineGlow.Size = UDim2.new(1, 16, 1, 8); LineGlow.BorderSizePixel = 0; LineGlow.ZIndex = 3
+    Instance.new("UICorner", LineGlow).CornerRadius = UDim.new(1, 0)
+
+    local MainText = Instance.new("TextLabel", Container)
+    MainText.BackgroundColor3 = Color3.fromRGB(20, 20, 30); MainText.BackgroundTransparency = 0.35
+    MainText.AnchorPoint = Vector2.new(0.5, 1); MainText.Position = UDim2.new(0.5, 0, 2, 0)
+    MainText.Size = UDim2.fromOffset(190, 44); MainText.Font = Enum.Font.GothamBlack
+    MainText.RichText = true; MainText.BorderSizePixel = 0; MainText.ZIndex = 3
+    Instance.new("UICorner", MainText).CornerRadius = UDim.new(0, 10)
+    local pColor = GetThemeColor("Primary")
+    local hexFormat = string.format("#%02X%02X%02X", math.floor(pColor.R*255), math.floor(pColor.G*255), math.floor(pColor.B*255))
+    MainText.Text = 'XIFIL <font color="'..hexFormat..'">HUB</font>'
+    MainText.TextColor3 = Color3.fromRGB(255, 255, 255); MainText.TextSize = 28
+
+    TweenService:Create(Line, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.fromOffset(190, 2)}):Play()
+    task.wait(0.35)
+    TweenService:Create(MainText, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.85, 0)}):Play()
+    task.wait(1.3)
+    TweenService:Create(MainText, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 2, 0)}):Play()
+    task.wait(0.35)
+    TweenService:Create(Line, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.fromOffset(0, 2)}):Play()
+    task.wait(0.4)
+
+    BtnContainer.Visible = true
+    local finalSize = UDim2.fromOffset(110, 36); local finalPos = BtnContainer.Position
+    local centerPos = UDim2.new(finalPos.X.Scale, finalPos.X.Offset + 55, finalPos.Y.Scale, finalPos.Y.Offset + 18)
+    BtnContainer.Size = UDim2.fromOffset(0, 0); BtnContainer.Position = centerPos
+    TweenService:Create(BtnContainer, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = finalSize, Position = finalPos}):Play()
+    task.wait(0.55)
+    IntroGui:Destroy()
+    ToggleGUI()
+end
+
+
+--------------------------------------------------------------------------------
+-- [S30] RGB RAINBOW LOOP
+--------------------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        task.wait(0.05); rgbHue = (rgbHue + 0.005) % 1
+        if VisualConfig.CurrentTheme == "RGB" then pcall(ApplyTheme) end
+    end
+end)
+
+
+--------------------------------------------------------------------------------
+-- [S31] INISIALISASI
+--------------------------------------------------------------------------------
+SwitchTab("🏠 Farm")
+
+--------------------------------------------------------------------------------
+-- [S31] INISIALISASI (Bagian Akhir Script)
+--------------------------------------------------------------------------------
+SwitchTab("🏠 Farm")
+
+task.defer(function()
+    -- 1. TERAPKAN VISUAL DEFAULT UNTUK USER BARU
+    -- Ini akan langsung memunculkan Nano Dust, Font, dan Warna tanpa perlu diklik!
+    if ApplyAllVisuals then
+        pcall(ApplyAllVisuals)
+    end
+
+    -- 2. Sinkronkan tombol di UI agar menampilkan teks bawaan yang benar
+    if SyncAllVisualUI then
+        pcall(SyncAllVisualUI)
+    end
+
+    -- 3. Terapkan config mesin bawaan
+    if EngineConfig.AntiAFKActive    and _G.AntiAFKToggle    then _G.AntiAFKToggle:SetValue(true) end
+    if EngineConfig.AntiPausedActive and _G.AntiPausedToggle then _G.AntiPausedToggle:SetValue(true) end
+    
+    -- 4. Mainkan animasi intro & Tampilkan Notifikasi
+    if PlayIntroAnimation then
+        task.spawn(function()
+            -- 1. Jalankan animasinya terlebih dahulu
+            PlayIntroAnimation() 
+            
+            -- 2. Beri jeda waktu sampai animasi benar-benar selesai dan menjadi Floating.
+            -- (Sesuaikan angka 2.5 ini dengan durasi detik animasi intro kamu)
+            task.wait(2.5) 
+            
+            -- 3. Panggil Notifikasi
+            -- Ganti "SendNotification" dengan nama fungsi notifikasimu yang sebenarnya jika berbeda
+            pcall(function()
+                CustomNotify("XIFIL HUB", "Script berhasil dieksekusi dan siap digunakan!", 5)
+            end)
+        end)
+    end
+
+end)
+
+-- (Jika ada sistem Load Profile otomatis di bawah sini, biarkan saja)
+
+
+ConfigSystem.ExecuteAutoLoad(function() SyncAllVisualUI() end)
+
+
+end)
