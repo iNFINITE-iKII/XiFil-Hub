@@ -223,7 +223,8 @@ startWithDRM(function(key, hwid)
     -- 2. Memuat script menggunakan loadstring dengan nama project yang diinginkan
     -- Ganti "kiiboo_alchemist_v2" dengan nama yang kamu mau
     local success, err = pcall(function()
-        loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=kiiboo_alchemist_v2"))()
+-- Pastikan menggunakan huruf kecil "h" pada "https" agar tidak error
+loadstring(game:HttpGet("https://raw.githubusercontent.com/iNFINITE-iKII/XiFil-Hub/refs/heads/main/artifacts/api-server/lua/Script"))()
     end)
     
     -- 3. Cek apakah proses pemuatan berhasil
