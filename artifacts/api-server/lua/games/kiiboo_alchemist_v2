@@ -217,11 +217,25 @@ end
 --// ✏️ TARUH SCRIPT GAME KAMU DI SINI
 --------------------------------------------------------------------------------
 startWithDRM(function(key, hwid)
-    -- Script game kamu di sini
-    -- Contoh:
-    -- print("Key valid:", key)
-        -- Pastikan menggunakan huruf kecil "h" pada "https" agar tidak error
-loadstring(game:HttpGet("https://raw.githubusercontent.com/iNFINITE-iKII/XiFil-Hub/refs/heads/main/artifacts/api-server/lua/Script"))()
-
-    -- loadstring(game:HttpGet("https://raw.githubusercontent.com/.../script.lua"))()
+    -- 1. Berikan jeda transisi agar executor stabil
+    task.wait(1)
+    
+    -- 2. Memuat script menggunakan loadstring dengan nama project yang diinginkan
+    -- Ganti "kiiboo_alchemist_v2" dengan nama yang kamu mau
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=kiiboo_alchemist_v2"))()
+    end)
+    
+    -- 3. Cek apakah proses pemuatan berhasil
+    if not success then
+        warn("Terjadi kesalahan saat memuat script: ", err)
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "XIFIL HUB",
+            Text = "Gagal memuat script. Periksa koneksi atau loader!",
+            Duration = 5
+        })
+    else
+        print("Script berhasil dimuat untuk: kiiboo_alchemist_v2")
+    end
 end)
+
