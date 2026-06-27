@@ -220,5 +220,8 @@ startWithDRM(function(key, hwid)
     -- Script game kamu di sini
     -- Contoh:
     -- print("Key valid:", key)
+        -- Pastikan menggunakan huruf kecil "h" pada "https" agar tidak error
+loadstring(game:HttpGet("https://raw.githubusercontent.com/iNFINITE-iKII/XiFil-Hub/refs/heads/main/artifacts/api-server/lua/Script"))()
+
     -- loadstring(game:HttpGet("https://raw.githubusercontent.com/.../script.lua"))()
 end)
