@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["lua-5.2", "nodejs-20", "web"]
 
 [deployment]
 router = "application"
@@ -22,3 +22,6 @@ timeoutMs = 20000
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[nix]
+channel = "stable-25_05"
