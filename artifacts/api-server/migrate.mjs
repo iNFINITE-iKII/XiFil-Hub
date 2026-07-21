@@ -3,14 +3,26 @@ const { Pool } = pg;
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 const migrations = [
-  `DO $$ BEGIN
-    IF NOT EXISTS (
-      SELECT 1 FROM pg_constraint WHERE conname = 'licenses_license_key_unique'
-    ) THEN
-      ALTER TABLE licenses ADD CONSTRAINT licenses_license_key_unique UNIQUE (license_key);
-    END IF;
-  END $$`,
+  // licenses table (main table)
+  `CREATE TABLE IF NOT EXISTS licenses (
+    id TEXT PRIMARY KEY,
+    license_key TEXT NOT NULL UNIQUE,
+    duration_type TEXT NOT NULL,
+    duration_value INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'UNUSED',
+    hwid_hash TEXT DEFAULT NULL,
+    expires_at BIGINT DEFAULT NULL,
+    issuer_discord_id TEXT NOT NULL,
+    created_at BIGINT NOT NULL,
+    max_hwid_resets INT DEFAULT 1,
+    hwid_reset_count INT DEFAULT 0,
+    hwid_reset_period TEXT DEFAULT 'WEEKLY',
+    label TEXT DEFAULT NULL,
+    notified_expire BOOLEAN DEFAULT FALSE,
+    max_hwid_count INT DEFAULT 3
+  )`,
 
+  // license_hwids table
   `CREATE TABLE IF NOT EXISTS license_hwids (
     id TEXT PRIMARY KEY,
     license_key TEXT NOT NULL,
@@ -19,6 +31,7 @@ const migrations = [
     UNIQUE (license_key, hwid_hash)
   )`,
 
+  // whitelist table
   `CREATE TABLE IF NOT EXISTS whitelist (
     id TEXT PRIMARY KEY,
     discord_user_id TEXT NOT NULL UNIQUE,
@@ -29,6 +42,7 @@ const migrations = [
     added_at BIGINT NOT NULL
   )`,
 
+  // user_keys table
   `CREATE TABLE IF NOT EXISTS user_keys (
     id TEXT PRIMARY KEY,
     discord_user_id TEXT NOT NULL,
@@ -37,6 +51,7 @@ const migrations = [
     UNIQUE (discord_user_id, license_key)
   )`,
 
+  // hwid_reset_log table
   `CREATE TABLE IF NOT EXISTS hwid_reset_log (
     id TEXT PRIMARY KEY,
     discord_user_id TEXT NOT NULL,
@@ -44,6 +59,7 @@ const migrations = [
     reset_at BIGINT NOT NULL
   )`,
 
+  // pending_tickets table
   `CREATE TABLE IF NOT EXISTS pending_tickets (
     discord_user_id TEXT PRIMARY KEY,
     channel_id TEXT NOT NULL,
@@ -51,12 +67,14 @@ const migrations = [
     created_at BIGINT NOT NULL
   )`,
 
+  // trial_key_claims table
   `CREATE TABLE IF NOT EXISTS trial_key_claims (
     discord_user_id TEXT PRIMARY KEY,
     license_key TEXT NOT NULL,
     claimed_at BIGINT NOT NULL
   )`,
 
+  // users table
   `CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     discord_id TEXT NOT NULL UNIQUE,
@@ -66,6 +84,7 @@ const migrations = [
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
 
+  // games table
   `CREATE TABLE IF NOT EXISTS games (
     id SERIAL PRIMARY KEY,
     slug TEXT NOT NULL UNIQUE,
@@ -74,13 +93,6 @@ const migrations = [
     status TEXT NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
   )`,
-
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_hwid_resets INT DEFAULT 1`,
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS hwid_reset_count INT DEFAULT 0`,
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS hwid_reset_period TEXT DEFAULT 'WEEKLY'`,
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS label TEXT DEFAULT NULL`,
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS notified_expire BOOLEAN DEFAULT FALSE`,
-  `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS max_hwid_count INT DEFAULT 3`,
 ];
 
 try {
@@ -88,7 +100,7 @@ try {
     await pool.query(sql);
     console.log("✅", sql.trim().split('\n')[0].substring(0, 70));
   }
-  console.log("\n🎉 All migrations applied successfully!");
+  console.log("\n🎉 All tables created successfully! Database is ready.");
 } catch (err) {
   console.error("❌ Migration failed:", err.message);
   process.exit(1);
