@@ -44,6 +44,7 @@ import {
   logTicketRejected,
 } from "../../lib/discordLogger.js";
 import { logger } from "../../lib/logger.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 const LUA_SCRIPT = `loadstring(game:HttpGet("https://xifil-hub-production.up.railway.app/api/lua/loader?game=soul_iron"))()`;
 
