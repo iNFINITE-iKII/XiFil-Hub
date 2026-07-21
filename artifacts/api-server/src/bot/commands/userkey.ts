@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const targetUser = interaction.options.getUser("user");
   const targetKey = interaction.options.get("key")?.value as string | undefined;

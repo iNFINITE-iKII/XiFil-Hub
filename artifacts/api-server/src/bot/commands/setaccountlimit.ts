@@ -24,7 +24,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const key = (interaction.options.get("key")?.value as string).trim().toUpperCase();
   const count = interaction.options.get("count")?.value as number;

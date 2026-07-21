@@ -114,7 +114,7 @@ async function requireWhitelist(interaction: ButtonInteraction): Promise<boolean
 // ─── Get Role PREMIUM ─────────────────────────────────────────────────────
 
 async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   if (!(await requireWhitelist(interaction))) return;
 
@@ -223,7 +223,7 @@ async function handleGetRoleVip(interaction: ButtonInteraction): Promise<void> {
 // ─── Get Key ──────────────────────────────────────────────────────────────
 
 async function handleGetKey(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   if (!(await requireWhitelist(interaction))) return;
 
@@ -300,7 +300,7 @@ async function handleResetHwidButton(interaction: ButtonInteraction): Promise<vo
 // ─── Reset HWID Modal Submit ──────────────────────────────────────────────
 
 export async function handleResetHwidModal(interaction: ModalSubmitInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const entry = await getWhitelistUser(interaction.user.id);
   if (!entry) {
@@ -415,7 +415,7 @@ export async function handleResetHwidModal(interaction: ModalSubmitInteraction):
 // ─── Cek HWID ─────────────────────────────────────────────────────────────
 
 async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   if (!(await requireWhitelist(interaction))) return;
 
@@ -461,7 +461,7 @@ async function handleCekHwid(interaction: ButtonInteraction): Promise<void> {
 const TRIAL_DURATION_HOURS = 6;
 
 async function handleGetTrialKey(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   // Check if already claimed
   const existing = await getTrialKeyClaim(interaction.user.id);
@@ -561,7 +561,7 @@ async function handleGetTrialKey(interaction: ButtonInteraction): Promise<void> 
 // ─── Buy PREMIUM ──────────────────────────────────────────────────────────
 
 async function handleBuyPremium(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   // Already whitelisted with a permanent key
   const existing = await getWhitelistUser(interaction.user.id);
@@ -947,7 +947,7 @@ async function handleApproveTicketButton(interaction: ButtonInteraction): Promis
 // ─── Approve Ticket Modal Submit ──────────────────────────────────────────
 
 export async function handleApproveTicketModal(interaction: ModalSubmitInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const targetUserId = interaction.customId.replace("approve_ticket_modal_", "");
 
@@ -1125,7 +1125,7 @@ export async function handleApproveTicketModal(interaction: ModalSubmitInteracti
 // ─── Reject Ticket ────────────────────────────────────────────────────────
 
 async function handleRejectTicket(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const member = interaction.member as GuildMember;
   if (!member.permissions.has("Administrator")) {
@@ -1248,7 +1248,7 @@ async function handleCloseTicket(interaction: ButtonInteraction): Promise<void> 
 // ─── Get Script ───────────────────────────────────────────────────────────
 
 async function handleGetScript(interaction: ButtonInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   await interaction.editReply({
     embeds: [

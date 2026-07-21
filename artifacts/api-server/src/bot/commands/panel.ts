@@ -12,7 +12,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(0);
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const rows = buildPanelRows();
   await (interaction.channel as TextChannel).send({ embeds: [buildPanelEmbed()], components: rows });

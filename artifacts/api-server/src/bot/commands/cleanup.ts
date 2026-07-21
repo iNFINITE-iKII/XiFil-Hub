@@ -20,7 +20,7 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await interaction.deferReply({ ephemeral: true });
+  if (!await safeDefer(interaction)) return;
 
   const days = interaction.options.getInteger("days") ?? 30;
   const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
