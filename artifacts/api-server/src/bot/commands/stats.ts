@@ -5,6 +5,7 @@ import {
   PermissionFlagsBits,
 } from "discord.js";
 import { getLicenseStats, getAllWhitelist } from "../database.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("stats")

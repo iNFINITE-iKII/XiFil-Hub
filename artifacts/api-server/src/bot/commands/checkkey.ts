@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { getByKey } from "../database.js";
 import { statusColor, statusEmoji, durationLabel } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("checkkey")

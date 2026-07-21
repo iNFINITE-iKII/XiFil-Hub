@@ -7,6 +7,7 @@ import {
 import { getByKey, revokeLicense } from "../database.js";
 import { logRevoke } from "../../lib/discordLogger.js";
 import { censorKey } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("revoke")

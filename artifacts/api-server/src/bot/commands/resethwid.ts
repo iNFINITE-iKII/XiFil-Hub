@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { getByKey, resetHwid } from "../database.js";
 import { censorKey } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("resethwid")

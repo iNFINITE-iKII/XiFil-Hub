@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { getByKey, renewLicense } from "../database.js";
 import { getDurationMs, censorKey, durationLabel } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("renewkey")

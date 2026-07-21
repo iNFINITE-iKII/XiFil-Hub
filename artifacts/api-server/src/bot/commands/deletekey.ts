@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { getByKey, getKeyOwner, deleteLicense } from "../database.js";
 import { durationLabel, statusEmoji } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("deletekey")

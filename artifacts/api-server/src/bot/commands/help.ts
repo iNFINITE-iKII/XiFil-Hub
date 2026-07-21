@@ -4,6 +4,7 @@ import {
   EmbedBuilder,
   PermissionFlagsBits,
 } from "discord.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 const COMMANDS = [
   {

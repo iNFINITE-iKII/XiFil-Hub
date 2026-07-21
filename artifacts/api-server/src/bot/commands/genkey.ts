@@ -7,6 +7,7 @@ import {
 import { randomUUID } from "crypto";
 import { getByKey, insertLicenses } from "../database.js";
 import { generateLicenseKey, durationLabel } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("genkey")

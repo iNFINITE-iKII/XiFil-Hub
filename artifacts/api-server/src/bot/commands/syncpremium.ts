@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { getAllPremiumEligibleUserIds } from "../database.js";
 import { logger } from "../../lib/logger.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("syncpremium")

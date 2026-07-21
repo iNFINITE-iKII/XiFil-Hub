@@ -5,6 +5,7 @@ import {
   TextChannel,
 } from "discord.js";
 import { buildPanelEmbed, buildPanelRows } from "../utils/panelBuilder.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("panel")

@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import { getUserKeys, getByKey, getKeyOwner } from "../database.js";
 import { statusEmoji, durationLabel } from "../utils.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("userkey")

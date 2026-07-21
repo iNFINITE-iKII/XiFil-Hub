@@ -20,6 +20,7 @@ import { generateLicenseKey, durationLabel } from "../utils.js";
 import { logWhitelistAdd, logWhitelistRemove } from "../../lib/discordLogger.js";
 import { logger } from "../../lib/logger.js";
 import { tryGrantPremiumRole, tryRevokePremiumRole, premiumRoleResultField } from "../utils/premiumRole.js";
+import { safeDefer } from "../utils/safeDefer.js";
 
 export const data = new SlashCommandBuilder()
   .setName("whitelist")
