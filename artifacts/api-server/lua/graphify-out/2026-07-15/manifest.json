@@ -1,0 +1,242 @@
+{
+  "_reference/xifil_hub_full.lua": {
+    "mtime": 1784037523.376528,
+    "ast_hash": "79af8f940b25fb092e6a9e7f68494fe1",
+    "semantic_hash": "79af8f940b25fb092e6a9e7f68494fe1"
+  },
+  "games/_template.lua": {
+    "mtime": 1784037523.3769825,
+    "ast_hash": "eb2f22ef4ed2b2f648ab40946eb2d91b",
+    "semantic_hash": "eb2f22ef4ed2b2f648ab40946eb2d91b"
+  },
+  "games/ironsoulbeta.lua": {
+    "mtime": 1784037523.377087,
+    "ast_hash": "ded6e8d0bb9cec827b15b134af3eae98",
+    "semantic_hash": "ded6e8d0bb9cec827b15b134af3eae98"
+  },
+  "games/ironsoulbeta/combat.lua": {
+    "mtime": 1784037523.377408,
+    "ast_hash": "06f00c0dea287a14968a1b9c141635d5",
+    "semantic_hash": "06f00c0dea287a14968a1b9c141635d5"
+  },
+  "games/ironsoulbeta/config_system.lua": {
+    "mtime": 1784037523.377538,
+    "ast_hash": "0b5b0550b30f6c889cf412f382755b33",
+    "semantic_hash": "0b5b0550b30f6c889cf412f382755b33"
+  },
+  "games/ironsoulbeta/core.lua": {
+    "mtime": 1784037523.3777654,
+    "ast_hash": "f239ef4fdc63a6d8aa0bb706d560feb5",
+    "semantic_hash": "f239ef4fdc63a6d8aa0bb706d560feb5"
+  },
+  "games/ironsoulbeta/farm.lua": {
+    "mtime": 1784037523.3778954,
+    "ast_hash": "613dd3a5e3cc59d22073a30325c96689",
+    "semantic_hash": "613dd3a5e3cc59d22073a30325c96689"
+  },
+  "games/ironsoulbeta/init.lua": {
+    "mtime": 1784037523.3781154,
+    "ast_hash": "5499059252ba0e85570129701e575dc9",
+    "semantic_hash": "5499059252ba0e85570129701e575dc9"
+  },
+  "games/ironsoulbeta/loader.lua": {
+    "mtime": 1784037523.378251,
+    "ast_hash": "5a8a8a2ba3553577a56069443e6b98cb",
+    "semantic_hash": "5a8a8a2ba3553577a56069443e6b98cb"
+  },
+  "games/ironsoulbeta/maid.lua": {
+    "mtime": 1784037523.3784423,
+    "ast_hash": "e99ef9daf1c6957f6e8bf53c90a00f6e",
+    "semantic_hash": "e99ef9daf1c6957f6e8bf53c90a00f6e"
+  },
+  "games/ironsoulbeta/navigation.lua": {
+    "mtime": 1784037523.378789,
+    "ast_hash": "654797969b752485364b1b621f24389b",
+    "semantic_hash": "654797969b752485364b1b621f24389b"
+  },
+  "games/ironsoulbeta/notify.lua": {
+    "mtime": 1784037523.3790896,
+    "ast_hash": "7cd98f79ec43fb18439982a137c59185",
+    "semantic_hash": "7cd98f79ec43fb18439982a137c59185"
+  },
+  "games/ironsoulbeta/translate.lua": {
+    "mtime": 1784037523.379247,
+    "ast_hash": "7acdeeb03aa0d25724886fe6a40c250e",
+    "semantic_hash": "7acdeeb03aa0d25724886fe6a40c250e"
+  },
+  "games/ironsoulbeta/ui/tab_autobuy.lua": {
+    "mtime": 1784037523.3794963,
+    "ast_hash": "4bd57d3c2116dd7660c191939e77e8fb",
+    "semantic_hash": "4bd57d3c2116dd7660c191939e77e8fb"
+  },
+  "games/ironsoulbeta/ui/tab_farm.lua": {
+    "mtime": 1784037523.3796427,
+    "ast_hash": "5c779c906e39c588b4f0ec87f16baf4b",
+    "semantic_hash": "5c779c906e39c588b4f0ec87f16baf4b"
+  },
+  "games/ironsoulbeta/ui/tab_forge.lua": {
+    "mtime": 1784037523.3797317,
+    "ast_hash": "61f46a1ddd7ce8bf9882fccc8bd8f9c8",
+    "semantic_hash": "61f46a1ddd7ce8bf9882fccc8bd8f9c8"
+  },
+  "games/ironsoulbeta/ui/tab_profile.lua": {
+    "mtime": 1784037523.3798342,
+    "ast_hash": "9fe73ac737d291b9013dcd86453fd0d1",
+    "semantic_hash": "9fe73ac737d291b9013dcd86453fd0d1"
+  },
+  "games/ironsoulbeta/ui/tab_room.lua": {
+    "mtime": 1784037523.3800523,
+    "ast_hash": "8b3254fce9049e5058a84df70971af8d",
+    "semantic_hash": "8b3254fce9049e5058a84df70971af8d"
+  },
+  "games/ironsoulbeta/ui/tab_sell.lua": {
+    "mtime": 1784037523.3802426,
+    "ast_hash": "b1aec36124d96d744a5affd1de64dd2a",
+    "semantic_hash": "b1aec36124d96d744a5affd1de64dd2a"
+  },
+  "games/ironsoulbeta/ui/tab_util.lua": {
+    "mtime": 1784037523.3803988,
+    "ast_hash": "b05993f85f59aa740037471fc7c226fe",
+    "semantic_hash": "b05993f85f59aa740037471fc7c226fe"
+  },
+  "games/ironsoulbeta/ui/tab_vector.lua": {
+    "mtime": 1784037523.3805707,
+    "ast_hash": "eefbaaf97cb89e61559a0bc38985fe06",
+    "semantic_hash": "eefbaaf97cb89e61559a0bc38985fe06"
+  },
+  "games/ironsoulbeta/ui/tab_visual.lua": {
+    "mtime": 1784037523.3807724,
+    "ast_hash": "ca6ec9a946111e9c6c6b985c761b4274",
+    "semantic_hash": "ca6ec9a946111e9c6c6b985c761b4274"
+  },
+  "games/ironsoulbeta/ui/ui_core.lua": {
+    "mtime": 1784037523.3809521,
+    "ast_hash": "cc57fb679dc289345397e4647228a873",
+    "semantic_hash": "cc57fb679dc289345397e4647228a873"
+  },
+  "games/ironsoulbeta/ui_sync.lua": {
+    "mtime": 1784037523.3811913,
+    "ast_hash": "71222d6d223898da5607715a9cf01295",
+    "semantic_hash": "71222d6d223898da5607715a9cf01295"
+  },
+  "games/ironsoulv1.lua": {
+    "mtime": 1784037523.3813548,
+    "ast_hash": "f7a4475be235228240e26f913aa6dea7",
+    "semantic_hash": "f7a4475be235228240e26f913aa6dea7"
+  },
+  "games/ironsoulv1/combat.lua": {
+    "mtime": 1784037523.3814704,
+    "ast_hash": "240e7e6b338f3a703a68f011344f5e69",
+    "semantic_hash": "240e7e6b338f3a703a68f011344f5e69"
+  },
+  "games/ironsoulv1/config_system.lua": {
+    "mtime": 1784037523.3815362,
+    "ast_hash": "0b5b0550b30f6c889cf412f382755b33",
+    "semantic_hash": "0b5b0550b30f6c889cf412f382755b33"
+  },
+  "games/ironsoulv1/core.lua": {
+    "mtime": 1784043380.4035873,
+    "ast_hash": "291d85c949802f3f85ae32528b762a9d",
+    "semantic_hash": "291d85c949802f3f85ae32528b762a9d"
+  },
+  "games/ironsoulv1/farm.lua": {
+    "mtime": 1784085257.4951792,
+    "ast_hash": "3176904d63fb8cf0b3b10680cfcf1029",
+    "semantic_hash": "3176904d63fb8cf0b3b10680cfcf1029"
+  },
+  "games/ironsoulv1/init.lua": {
+    "mtime": 1784037523.3817914,
+    "ast_hash": "6ee06bc211f66be39dd5567dbd3949be",
+    "semantic_hash": "6ee06bc211f66be39dd5567dbd3949be"
+  },
+  "games/ironsoulv1/loader.lua": {
+    "mtime": 1784037523.3818674,
+    "ast_hash": "fdb6b3dddd3aed21b813d3277cda81ff",
+    "semantic_hash": "fdb6b3dddd3aed21b813d3277cda81ff"
+  },
+  "games/ironsoulv1/maid.lua": {
+    "mtime": 1784037523.3819551,
+    "ast_hash": "e99ef9daf1c6957f6e8bf53c90a00f6e",
+    "semantic_hash": "e99ef9daf1c6957f6e8bf53c90a00f6e"
+  },
+  "games/ironsoulv1/navigation.lua": {
+    "mtime": 1784037523.3819928,
+    "ast_hash": "3ee8eac9b165f4b4b6f3948cf0d38f23",
+    "semantic_hash": "3ee8eac9b165f4b4b6f3948cf0d38f23"
+  },
+  "games/ironsoulv1/notify.lua": {
+    "mtime": 1784037523.3820326,
+    "ast_hash": "e1acc7798a41a95d36ae315bb0431203",
+    "semantic_hash": "e1acc7798a41a95d36ae315bb0431203"
+  },
+  "games/ironsoulv1/translate.lua": {
+    "mtime": 1784037523.3821125,
+    "ast_hash": "28b14c8bf1b44cdbf136a3acfa4539be",
+    "semantic_hash": "28b14c8bf1b44cdbf136a3acfa4539be"
+  },
+  "games/ironsoulv1/ui/tab_autobuy.lua": {
+    "mtime": 1784037523.382167,
+    "ast_hash": "494c17e29681aaba443f9c600e53d107",
+    "semantic_hash": "494c17e29681aaba443f9c600e53d107"
+  },
+  "games/ironsoulv1/ui/tab_farm.lua": {
+    "mtime": 1784037523.3822598,
+    "ast_hash": "a6697263c03a6f0aff8767e21091ab1a",
+    "semantic_hash": "a6697263c03a6f0aff8767e21091ab1a"
+  },
+  "games/ironsoulv1/ui/tab_forge.lua": {
+    "mtime": 1784037523.3822994,
+    "ast_hash": "61f46a1ddd7ce8bf9882fccc8bd8f9c8",
+    "semantic_hash": "61f46a1ddd7ce8bf9882fccc8bd8f9c8"
+  },
+  "games/ironsoulv1/ui/tab_profile.lua": {
+    "mtime": 1784037523.3823667,
+    "ast_hash": "9fe73ac737d291b9013dcd86453fd0d1",
+    "semantic_hash": "9fe73ac737d291b9013dcd86453fd0d1"
+  },
+  "games/ironsoulv1/ui/tab_room.lua": {
+    "mtime": 1784037523.382445,
+    "ast_hash": "8b3254fce9049e5058a84df70971af8d",
+    "semantic_hash": "8b3254fce9049e5058a84df70971af8d"
+  },
+  "games/ironsoulv1/ui/tab_sell.lua": {
+    "mtime": 1784037523.3824816,
+    "ast_hash": "b1aec36124d96d744a5affd1de64dd2a",
+    "semantic_hash": "b1aec36124d96d744a5affd1de64dd2a"
+  },
+  "games/ironsoulv1/ui/tab_util.lua": {
+    "mtime": 1784037523.3825366,
+    "ast_hash": "b05993f85f59aa740037471fc7c226fe",
+    "semantic_hash": "b05993f85f59aa740037471fc7c226fe"
+  },
+  "games/ironsoulv1/ui/tab_vector.lua": {
+    "mtime": 1784043383.1964035,
+    "ast_hash": "cc780a5fc4604ae05971695a7dfed36d",
+    "semantic_hash": "cc780a5fc4604ae05971695a7dfed36d"
+  },
+  "games/ironsoulv1/ui/tab_visual.lua": {
+    "mtime": 1784037523.382701,
+    "ast_hash": "ca6ec9a946111e9c6c6b985c761b4274",
+    "semantic_hash": "ca6ec9a946111e9c6c6b985c761b4274"
+  },
+  "games/ironsoulv1/ui/ui_core.lua": {
+    "mtime": 1784037523.382784,
+    "ast_hash": "cc57fb679dc289345397e4647228a873",
+    "semantic_hash": "cc57fb679dc289345397e4647228a873"
+  },
+  "games/ironsoulv1/ui_sync.lua": {
+    "mtime": 1784037523.3828804,
+    "ast_hash": "cd81b941c24448d22f68931ffe4bbd1d",
+    "semantic_hash": "cd81b941c24448d22f68931ffe4bbd1d"
+  },
+  "games/soul_iron.lua": {
+    "mtime": 1784037523.3829646,
+    "ast_hash": "2cf7ee4ec70dd2e0b28daa184b7d37d9",
+    "semantic_hash": "2cf7ee4ec70dd2e0b28daa184b7d37d9"
+  },
+  "games/soul_iron/loader.lua": {
+    "mtime": 1784037523.3830516,
+    "ast_hash": "49f5d04da54941266b1edc59043d70cc",
+    "semantic_hash": "49f5d04da54941266b1edc59043d70cc"
+  }
+}

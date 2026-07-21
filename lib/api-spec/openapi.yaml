@@ -3,13 +3,24 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: XiFil Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: games
+    description: Game operations
+  - name: keys
+    description: License key operations
+  - name: admin
+    description: Admin operations
+  - name: license
+    description: License verification (for Lua scripts)
+
 paths:
   /healthz:
     get:
@@ -24,6 +35,278 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /games:
+    get:
+      operationId: listGames
+      tags: [games]
+      summary: List all available games
+      responses:
+        "200":
+          description: List of games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Game"
+
+  /games/{slug}:
+    get:
+      operationId: getGame
+      tags: [games]
+      summary: Get game by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Game details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Game"
+        "404":
+          description: Game not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /keys:
+    get:
+      operationId: listMyKeys
+      tags: [keys]
+      summary: List current user's license keys
+      responses:
+        "200":
+          description: List of user's license keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LicenseKey"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /keys/generate:
+    post:
+      operationId: generateKey
+      tags: [keys]
+      summary: Generate a new license key (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyGenerateInput"
+      responses:
+        "201":
+          description: Generated license key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseKey"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /keys/{id}:
+    delete:
+      operationId: revokeKey
+      tags: [keys]
+      summary: Revoke a license key (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /keys/{id}/assign:
+    post:
+      operationId: assignKey
+      tags: [keys]
+      summary: Assign a key to a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyAssignInput"
+      responses:
+        "200":
+          description: Key assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseKey"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /license/check:
+    get:
+      operationId: checkLicense
+      tags: [license]
+      summary: Check license key validity (called by Lua scripts)
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hwid
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: License check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseCheckResult"
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Get admin dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of all users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/keys:
+    get:
+      operationId: listAdminKeys
+      tags: [admin]
+      summary: List all license keys (admin only)
+      responses:
+        "200":
+          description: List of all license keys with user info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LicenseKey"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +317,152 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        discordId:
+          type: string
+        username:
+          type: string
+        avatar:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - discordId
+        - username
+        - isAdmin
+        - createdAt
+
+    Game:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        loaderName:
+          type: ["string", "null"]
+        features:
+          type: array
+          items:
+            type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+        - status
+        - createdAt
+
+    LicenseKey:
+      type: object
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        gameId:
+          type: integer
+        gameName:
+          type: ["string", "null"]
+        userId:
+          type: ["integer", "null"]
+        username:
+          type: ["string", "null"]
+        hwid:
+          type: ["string", "null"]
+        status:
+          type: string
+        expiresAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - key
+        - gameId
+        - status
+        - createdAt
+
+    KeyGenerateInput:
+      type: object
+      properties:
+        gameId:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        expiresAt:
+          type: ["string", "null"]
+      required:
+        - gameId
+
+    KeyAssignInput:
+      type: object
+      properties:
+        userId:
+          type: integer
+      required:
+        - userId
+
+    LicenseCheckResult:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required:
+        - status
+        - message
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalKeys:
+          type: integer
+        activeKeys:
+          type: integer
+        totalGames:
+          type: integer
+        recentUsers:
+          type: integer
+      required:
+        - totalUsers
+        - totalKeys
+        - activeKeys
+        - totalGames
+        - recentUsers
