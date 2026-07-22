@@ -1,0 +1,1 @@
+- [XiFil Hub Bot Setup](xifil-hub-bot.md) — Discord bot + Neon DB; uses NEON_DATABASE_URL not DATABASE_URL; DDL idempotent in initDb()

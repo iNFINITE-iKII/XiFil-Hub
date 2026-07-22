@@ -1,0 +1,669 @@
+{
+  "communities": {
+    "0": [
+      "games_ironsoulbeta_combat",
+      "games_ironsoulbeta_combat_applymovement",
+      "games_ironsoulbeta_combat_checkvictoryui",
+      "games_ironsoulbeta_combat_combatengine_getleveltype",
+      "games_ironsoulbeta_combat_combatengine_getnpcid",
+      "games_ironsoulbeta_combat_combatengine_getvalidchests",
+      "games_ironsoulbeta_combat_combatengine_getvalidmonsters",
+      "games_ironsoulbeta_combat_combatengine_interruptablestall",
+      "games_ironsoulbeta_combat_combatengine_resetphysics",
+      "games_ironsoulbeta_combat_combatengine_targetsexistglobal",
+      "games_ironsoulbeta_combat_disableautofarm",
+      "games_ironsoulbeta_combat_firebacklobby",
+      "games_ironsoulbeta_combat_firereplayremote",
+      "games_ironsoulbeta_combat_getmyposition",
+      "games_ironsoulbeta_combat_getpositioncframe",
+      "games_ironsoulbeta_combat_handleendofround",
+      "games_ironsoulbeta_combat_isvictorytext",
+      "games_ironsoulbeta_config_system",
+      "games_ironsoulbeta_config_system_configsystem_delete",
+      "games_ironsoulbeta_config_system_configsystem_executeautoload",
+      "games_ironsoulbeta_config_system_configsystem_getautoloadpointer",
+      "games_ironsoulbeta_config_system_configsystem_getconfiglist",
+      "games_ironsoulbeta_config_system_configsystem_load",
+      "games_ironsoulbeta_config_system_configsystem_overwriteexisting",
+      "games_ironsoulbeta_config_system_configsystem_saveautoloadpointer",
+      "games_ironsoulbeta_config_system_configsystem_savenew",
+      "games_ironsoulbeta_farm",
+      "games_ironsoulbeta_farm_anyfarmtoggleactive",
+      "games_ironsoulbeta_farm_destroyflyobjects",
+      "games_ironsoulbeta_farm_findgoldshopremote",
+      "games_ironsoulbeta_farm_findgoldshopscrollingframe",
+      "games_ironsoulbeta_farm_restorecollision",
+      "games_ironsoulbeta_farm_startfarmloop",
+      "games_ironsoulbeta_navigation",
+      "games_ironsoulbeta_navigation_anyactivetargetexists",
+      "games_ironsoulbeta_navigation_navigation_getclosestobject",
+      "games_ironsoulbeta_navigation_navigation_getportalrootcframe",
+      "games_ironsoulbeta_navigation_navigation_getsingleclosestportal",
+      "games_ironsoulbeta_navigation_navigation_searchworld1",
+      "games_ironsoulbeta_navigation_navigation_searchworld2",
+      "games_ironsoulbeta_navigation_navigation_searchworld3",
+      "games_ironsoulbeta_navigation_navigation_trytriggerportal",
+      "games_ironsoulbeta_notify",
+      "games_ironsoulbeta_notify_customnotify",
+      "games_ironsoulbeta_ui_tab_forge",
+      "games_ironsoulbeta_ui_tab_forge_tpandopenbykeyword",
+      "games_ironsoulbeta_ui_tab_profile",
+      "games_ironsoulbeta_ui_tab_profile_refreshconfigdropdown"
+    ],
+    "1": [
+      "games_ironsoulv1_combat",
+      "games_ironsoulv1_combat_applymovement",
+      "games_ironsoulv1_combat_checkvictoryui",
+      "games_ironsoulv1_combat_combatengine_getleveltype",
+      "games_ironsoulv1_combat_combatengine_getnpcid",
+      "games_ironsoulv1_combat_combatengine_getvalidchests",
+      "games_ironsoulv1_combat_combatengine_getvalidmonsters",
+      "games_ironsoulv1_combat_combatengine_interruptablestall",
+      "games_ironsoulv1_combat_combatengine_resetphysics",
+      "games_ironsoulv1_combat_combatengine_targetsexistglobal",
+      "games_ironsoulv1_combat_disableautofarm",
+      "games_ironsoulv1_combat_firebacklobby",
+      "games_ironsoulv1_combat_firereplayremote",
+      "games_ironsoulv1_combat_getpositioncframe",
+      "games_ironsoulv1_combat_handleendofround",
+      "games_ironsoulv1_combat_isvictorytext",
+      "games_ironsoulv1_farm",
+      "games_ironsoulv1_farm_anyfarmtoggleactive",
+      "games_ironsoulv1_farm_destroyflyobjects",
+      "games_ironsoulv1_farm_findgoldshopremote",
+      "games_ironsoulv1_farm_findgoldshopscrollingframe",
+      "games_ironsoulv1_farm_findseasonshopscrollingframe",
+      "games_ironsoulv1_farm_firebowattack",
+      "games_ironsoulv1_farm_fireheavyattack",
+      "games_ironsoulv1_farm_fireweaponattack",
+      "games_ironsoulv1_farm_getactivedragonegg",
+      "games_ironsoulv1_farm_restorecollision",
+      "games_ironsoulv1_farm_startfarmloop",
+      "games_ironsoulv1_navigation",
+      "games_ironsoulv1_navigation_anyactivetargetexists",
+      "games_ironsoulv1_navigation_navigation_getclosestobject",
+      "games_ironsoulv1_navigation_navigation_getportalrootcframe",
+      "games_ironsoulv1_navigation_navigation_getsingleclosestportal",
+      "games_ironsoulv1_navigation_navigation_searchworld1",
+      "games_ironsoulv1_navigation_navigation_searchworld2",
+      "games_ironsoulv1_navigation_navigation_searchworld3",
+      "games_ironsoulv1_navigation_navigation_trytriggerportal",
+      "games_ironsoulv1_notify",
+      "games_ironsoulv1_notify_customnotify",
+      "games_ironsoulv1_ui_tab_forge",
+      "games_ironsoulv1_ui_tab_forge_tpandopenbykeyword",
+      "games_ironsoulv1_ui_tab_sell",
+      "games_ironsoulv1_ui_tab_sell_cleansr",
+      "games_ironsoulv1_ui_tab_sell_detectrarity",
+      "games_ironsoulv1_ui_tab_sell_dosellbyrarity",
+      "games_ironsoulv1_ui_tab_sell_getoresscrollsr",
+      "games_ironsoulv1_ui_tab_sell_runinventoryscanner",
+      "games_ironsoulv1_ui_tab_sell_sellspesifiknamaitem"
+    ],
+    "2": [
+      "games_ironsoulbeta_translate",
+      "games_ironsoulbeta_translate_applytranslations",
+      "games_ironsoulbeta_translate_registertranslation",
+      "games_ironsoulbeta_translate_registertranslationfn",
+      "games_ironsoulbeta_translate_setlanguage",
+      "games_ironsoulbeta_translate_t",
+      "games_ironsoulbeta_ui_tab_autobuy",
+      "games_ironsoulbeta_ui_tab_autobuy_makecatbtn",
+      "games_ironsoulbeta_ui_ui_core",
+      "games_ironsoulbeta_ui_ui_core_applyallvisuals",
+      "games_ironsoulbeta_ui_ui_core_applybgcolortheme",
+      "games_ironsoulbeta_ui_ui_core_applybgeffect",
+      "games_ironsoulbeta_ui_ui_core_applybuttonshape",
+      "games_ironsoulbeta_ui_ui_core_applyfont",
+      "games_ironsoulbeta_ui_ui_core_applytabmode",
+      "games_ironsoulbeta_ui_ui_core_applytheme",
+      "games_ironsoulbeta_ui_ui_core_applytoggleshape",
+      "games_ironsoulbeta_ui_ui_core_applytransparency",
+      "games_ironsoulbeta_ui_ui_core_clearbgeffect",
+      "games_ironsoulbeta_ui_ui_core_createbutton",
+      "games_ironsoulbeta_ui_ui_core_createcycleui",
+      "games_ironsoulbeta_ui_ui_core_createdropdownui",
+      "games_ironsoulbeta_ui_ui_core_createinputui",
+      "games_ironsoulbeta_ui_ui_core_createmulticheckui",
+      "games_ironsoulbeta_ui_ui_core_createscrollablemultiselectui",
+      "games_ironsoulbeta_ui_ui_core_createsection",
+      "games_ironsoulbeta_ui_ui_core_createsliderui",
+      "games_ironsoulbeta_ui_ui_core_createtab",
+      "games_ironsoulbeta_ui_ui_core_createtoggleui",
+      "games_ironsoulbeta_ui_ui_core_createwinbutton",
+      "games_ironsoulbeta_ui_ui_core_getsafeparent",
+      "games_ironsoulbeta_ui_ui_core_getthemecolor",
+      "games_ironsoulbeta_ui_ui_core_makedraggable",
+      "games_ironsoulbeta_ui_ui_core_makeresizable",
+      "games_ironsoulbeta_ui_ui_core_registerpanel",
+      "games_ironsoulbeta_ui_ui_core_registerthemeelement",
+      "games_ironsoulbeta_ui_ui_core_updatefontsize"
+    ],
+    "3": [
+      "games_ironsoulv1_translate",
+      "games_ironsoulv1_translate_applytranslations",
+      "games_ironsoulv1_translate_registertranslation",
+      "games_ironsoulv1_translate_registertranslationfn",
+      "games_ironsoulv1_translate_setlanguage",
+      "games_ironsoulv1_translate_t",
+      "games_ironsoulv1_ui_ui_core",
+      "games_ironsoulv1_ui_ui_core_applyallvisuals",
+      "games_ironsoulv1_ui_ui_core_applybgcolortheme",
+      "games_ironsoulv1_ui_ui_core_applybgeffect",
+      "games_ironsoulv1_ui_ui_core_applybuttonshape",
+      "games_ironsoulv1_ui_ui_core_applyfont",
+      "games_ironsoulv1_ui_ui_core_applytabmode",
+      "games_ironsoulv1_ui_ui_core_applytheme",
+      "games_ironsoulv1_ui_ui_core_applytoggleshape",
+      "games_ironsoulv1_ui_ui_core_applytransparency",
+      "games_ironsoulv1_ui_ui_core_clearbgeffect",
+      "games_ironsoulv1_ui_ui_core_createbutton",
+      "games_ironsoulv1_ui_ui_core_createcycleui",
+      "games_ironsoulv1_ui_ui_core_createdropdownui",
+      "games_ironsoulv1_ui_ui_core_createinputui",
+      "games_ironsoulv1_ui_ui_core_createmulticheckui",
+      "games_ironsoulv1_ui_ui_core_createscrollablemultiselectui",
+      "games_ironsoulv1_ui_ui_core_createsection",
+      "games_ironsoulv1_ui_ui_core_createsliderui",
+      "games_ironsoulv1_ui_ui_core_createtab",
+      "games_ironsoulv1_ui_ui_core_createtoggleui",
+      "games_ironsoulv1_ui_ui_core_createwinbutton",
+      "games_ironsoulv1_ui_ui_core_getsafeparent",
+      "games_ironsoulv1_ui_ui_core_getthemecolor",
+      "games_ironsoulv1_ui_ui_core_makedraggable",
+      "games_ironsoulv1_ui_ui_core_makeresizable",
+      "games_ironsoulv1_ui_ui_core_registerpanel",
+      "games_ironsoulv1_ui_ui_core_registerthemeelement",
+      "games_ironsoulv1_ui_ui_core_updatefontsize"
+    ],
+    "4": [
+      "reference_xifil_hub_full",
+      "reference_xifil_hub_full_applyallvisuals",
+      "reference_xifil_hub_full_applybgcolortheme",
+      "reference_xifil_hub_full_applybgeffect",
+      "reference_xifil_hub_full_applybuttonshape",
+      "reference_xifil_hub_full_applyfont",
+      "reference_xifil_hub_full_applytabmode",
+      "reference_xifil_hub_full_applytheme",
+      "reference_xifil_hub_full_applytoggleshape",
+      "reference_xifil_hub_full_applytranslations",
+      "reference_xifil_hub_full_applytransparency",
+      "reference_xifil_hub_full_clearbgeffect",
+      "reference_xifil_hub_full_configsystem_delete",
+      "reference_xifil_hub_full_configsystem_getconfiglist",
+      "reference_xifil_hub_full_configsystem_overwriteexisting",
+      "reference_xifil_hub_full_configsystem_saveautoloadpointer",
+      "reference_xifil_hub_full_configsystem_savenew",
+      "reference_xifil_hub_full_createwinbutton",
+      "reference_xifil_hub_full_findgoldshopremote",
+      "reference_xifil_hub_full_findgoldshopscrollingframe",
+      "reference_xifil_hub_full_getsafeparent",
+      "reference_xifil_hub_full_maid_docleaning",
+      "reference_xifil_hub_full_maid_givetask",
+      "reference_xifil_hub_full_maid_new",
+      "reference_xifil_hub_full_makedraggable",
+      "reference_xifil_hub_full_makeresizable",
+      "reference_xifil_hub_full_refreshconfigdropdown",
+      "reference_xifil_hub_full_registerpanel",
+      "reference_xifil_hub_full_runinventoryscanner",
+      "reference_xifil_hub_full_sellspesifiknamaitem",
+      "reference_xifil_hub_full_syncallvisualui",
+      "reference_xifil_hub_full_t",
+      "reference_xifil_hub_full_updatefontsize"
+    ],
+    "5": [
+      "reference_xifil_hub_full_anyactivetargetexists",
+      "reference_xifil_hub_full_anyfarmtoggleactive",
+      "reference_xifil_hub_full_applymovement",
+      "reference_xifil_hub_full_checkvictoryui",
+      "reference_xifil_hub_full_combatengine_getleveltype",
+      "reference_xifil_hub_full_combatengine_getnpcid",
+      "reference_xifil_hub_full_combatengine_getvalidchests",
+      "reference_xifil_hub_full_combatengine_getvalidmonsters",
+      "reference_xifil_hub_full_combatengine_interruptablestall",
+      "reference_xifil_hub_full_combatengine_resetphysics",
+      "reference_xifil_hub_full_combatengine_targetsexistglobal",
+      "reference_xifil_hub_full_getpositioncframe",
+      "reference_xifil_hub_full_isvictorytext",
+      "reference_xifil_hub_full_navigation_getclosestobject",
+      "reference_xifil_hub_full_navigation_getportalrootcframe",
+      "reference_xifil_hub_full_navigation_getsingleclosestportal",
+      "reference_xifil_hub_full_navigation_searchworld1",
+      "reference_xifil_hub_full_navigation_searchworld2",
+      "reference_xifil_hub_full_navigation_searchworld3",
+      "reference_xifil_hub_full_navigation_trytriggerportal",
+      "reference_xifil_hub_full_startfarmloop",
+      "reference_xifil_hub_full_tpandopenbykeyword"
+    ],
+    "6": [
+      "reference_xifil_hub_full_createbutton",
+      "reference_xifil_hub_full_createcycleui",
+      "reference_xifil_hub_full_createdropdownui",
+      "reference_xifil_hub_full_createinputui",
+      "reference_xifil_hub_full_createmulticheckui",
+      "reference_xifil_hub_full_createsection",
+      "reference_xifil_hub_full_createsliderui",
+      "reference_xifil_hub_full_createtab",
+      "reference_xifil_hub_full_createtoggleui",
+      "reference_xifil_hub_full_getthemecolor",
+      "reference_xifil_hub_full_makecatbtn",
+      "reference_xifil_hub_full_playintroanimation",
+      "reference_xifil_hub_full_registerthemeelement",
+      "reference_xifil_hub_full_registertranslation",
+      "reference_xifil_hub_full_registertranslationfn",
+      "reference_xifil_hub_full_togglegui"
+    ],
+    "7": [
+      "games_ironsoulv1_core",
+      "games_ironsoulv1_core_getmodelabel",
+      "games_ironsoulv1_core_iscaveworld",
+      "games_ironsoulv1_core_isendlesstower",
+      "games_ironsoulv1_core_waitchain",
+      "games_ironsoulv1_ui_sync",
+      "games_ironsoulv1_ui_sync_clamproommode",
+      "games_ironsoulv1_ui_sync_syncallvisualui",
+      "games_ironsoulv1_ui_tab_room",
+      "games_ironsoulv1_ui_tab_room_buildmodelist",
+      "games_ironsoulv1_ui_tab_room_getmodenumber",
+      "games_ironsoulv1_ui_tab_room_updatemodedropdown"
+    ],
+    "8": [
+      "games_ironsoulbeta_core",
+      "games_ironsoulbeta_core_getmodelabel",
+      "games_ironsoulbeta_core_iscaveworld",
+      "games_ironsoulbeta_core_isendlesstower",
+      "games_ironsoulbeta_ui_sync",
+      "games_ironsoulbeta_ui_sync_clamproommode",
+      "games_ironsoulbeta_ui_sync_syncallvisualui",
+      "games_ironsoulbeta_ui_tab_room",
+      "games_ironsoulbeta_ui_tab_room_buildmodelist",
+      "games_ironsoulbeta_ui_tab_room_getmodenumber",
+      "games_ironsoulbeta_ui_tab_room_updatemodedropdown"
+    ],
+    "9": [
+      "games_ironsoulv1_config_system",
+      "games_ironsoulv1_config_system_configsystem_delete",
+      "games_ironsoulv1_config_system_configsystem_executeautoload",
+      "games_ironsoulv1_config_system_configsystem_getautoloadpointer",
+      "games_ironsoulv1_config_system_configsystem_getconfiglist",
+      "games_ironsoulv1_config_system_configsystem_load",
+      "games_ironsoulv1_config_system_configsystem_overwriteexisting",
+      "games_ironsoulv1_config_system_configsystem_saveautoloadpointer",
+      "games_ironsoulv1_config_system_configsystem_savenew",
+      "games_ironsoulv1_ui_tab_profile",
+      "games_ironsoulv1_ui_tab_profile_refreshconfigdropdown"
+    ],
+    "10": [
+      "games_ironsoulbeta",
+      "games_ironsoulbeta_checklicense",
+      "games_ironsoulbeta_deletekey",
+      "games_ironsoulbeta_gethwid",
+      "games_ironsoulbeta_load",
+      "games_ironsoulbeta_promptkey",
+      "games_ironsoulbeta_readkey",
+      "games_ironsoulbeta_savekey",
+      "games_ironsoulbeta_startwithdrm",
+      "games_ironsoulbeta_tween"
+    ],
+    "11": [
+      "games_ironsoulbeta_loader",
+      "games_ironsoulbeta_loader_checklicense",
+      "games_ironsoulbeta_loader_deletekey",
+      "games_ironsoulbeta_loader_gethwid",
+      "games_ironsoulbeta_loader_load",
+      "games_ironsoulbeta_loader_promptkey",
+      "games_ironsoulbeta_loader_readkey",
+      "games_ironsoulbeta_loader_savekey",
+      "games_ironsoulbeta_loader_startwithdrm",
+      "games_ironsoulbeta_loader_tween"
+    ],
+    "12": [
+      "games_ironsoulv1",
+      "games_ironsoulv1_checklicense",
+      "games_ironsoulv1_deletekey",
+      "games_ironsoulv1_gethwid",
+      "games_ironsoulv1_load",
+      "games_ironsoulv1_promptkey",
+      "games_ironsoulv1_readkey",
+      "games_ironsoulv1_savekey",
+      "games_ironsoulv1_startwithdrm",
+      "games_ironsoulv1_tween"
+    ],
+    "13": [
+      "games_ironsoulv1_loader",
+      "games_ironsoulv1_loader_checklicense",
+      "games_ironsoulv1_loader_deletekey",
+      "games_ironsoulv1_loader_gethwid",
+      "games_ironsoulv1_loader_load",
+      "games_ironsoulv1_loader_promptkey",
+      "games_ironsoulv1_loader_readkey",
+      "games_ironsoulv1_loader_savekey",
+      "games_ironsoulv1_loader_startwithdrm",
+      "games_ironsoulv1_loader_tween"
+    ],
+    "14": [
+      "games_soul_iron",
+      "games_soul_iron_checklicense",
+      "games_soul_iron_deletekey",
+      "games_soul_iron_gethwid",
+      "games_soul_iron_load",
+      "games_soul_iron_promptkey",
+      "games_soul_iron_readkey",
+      "games_soul_iron_savekey",
+      "games_soul_iron_startwithdrm",
+      "games_soul_iron_tween"
+    ],
+    "15": [
+      "games_soul_iron_loader",
+      "games_soul_iron_loader_checklicense",
+      "games_soul_iron_loader_deletekey",
+      "games_soul_iron_loader_gethwid",
+      "games_soul_iron_loader_load",
+      "games_soul_iron_loader_promptkey",
+      "games_soul_iron_loader_readkey",
+      "games_soul_iron_loader_savekey",
+      "games_soul_iron_loader_startwithdrm",
+      "games_soul_iron_loader_tween"
+    ],
+    "16": [
+      "games_template",
+      "games_template_checklicense",
+      "games_template_deletekey",
+      "games_template_gethwid",
+      "games_template_promptkey",
+      "games_template_readkey",
+      "games_template_savekey",
+      "games_template_startwithdrm",
+      "games_template_tween"
+    ],
+    "17": [
+      "reference_xifil_hub_full_checklicense",
+      "reference_xifil_hub_full_deletekey",
+      "reference_xifil_hub_full_gethwid",
+      "reference_xifil_hub_full_promptkey",
+      "reference_xifil_hub_full_readkey",
+      "reference_xifil_hub_full_savekey",
+      "reference_xifil_hub_full_startwithdrm",
+      "reference_xifil_hub_full_tween"
+    ],
+    "18": [
+      "games_ironsoulbeta_ui_tab_sell",
+      "games_ironsoulbeta_ui_tab_sell_cleansr",
+      "games_ironsoulbeta_ui_tab_sell_detectrarity",
+      "games_ironsoulbeta_ui_tab_sell_dosellbyrarity",
+      "games_ironsoulbeta_ui_tab_sell_getoresscrollsr",
+      "games_ironsoulbeta_ui_tab_sell_runinventoryscanner",
+      "games_ironsoulbeta_ui_tab_sell_sellspesifiknamaitem"
+    ],
+    "19": [
+      "games_ironsoulbeta_ui_tab_util",
+      "games_ironsoulbeta_ui_tab_util_getcodere",
+      "games_ironsoulbeta_ui_tab_util_getcurrentrace",
+      "games_ironsoulbeta_ui_tab_util_getlotteryre",
+      "games_ironsoulbeta_ui_tab_util_getracere",
+      "games_ironsoulbeta_ui_tab_util_getrewardre"
+    ],
+    "20": [
+      "games_ironsoulv1_ui_tab_util",
+      "games_ironsoulv1_ui_tab_util_getcodere",
+      "games_ironsoulv1_ui_tab_util_getcurrentrace",
+      "games_ironsoulv1_ui_tab_util_getlotteryre",
+      "games_ironsoulv1_ui_tab_util_getracere",
+      "games_ironsoulv1_ui_tab_util_getrewardre"
+    ],
+    "21": [
+      "reference_xifil_hub_full_configsystem_executeautoload",
+      "reference_xifil_hub_full_configsystem_getautoloadpointer",
+      "reference_xifil_hub_full_configsystem_load",
+      "reference_xifil_hub_full_customnotify",
+      "reference_xifil_hub_full_disableautofarm",
+      "reference_xifil_hub_full_firereplayremote"
+    ],
+    "22": [
+      "games_ironsoulbeta_init",
+      "games_ironsoulbeta_init_getrgbhue",
+      "games_ironsoulbeta_init_playintroanimation",
+      "games_ironsoulbeta_init_setrgbhue",
+      "games_ironsoulbeta_init_togglegui"
+    ],
+    "23": [
+      "games_ironsoulv1_init",
+      "games_ironsoulv1_init_getrgbhue",
+      "games_ironsoulv1_init_playintroanimation",
+      "games_ironsoulv1_init_setrgbhue",
+      "games_ironsoulv1_init_togglegui"
+    ],
+    "24": [
+      "games_ironsoulv1_ui_tab_autobuy",
+      "games_ironsoulv1_ui_tab_autobuy_getseasonsf",
+      "games_ironsoulv1_ui_tab_autobuy_getvisualname",
+      "games_ironsoulv1_ui_tab_autobuy_makecatbtn",
+      "games_ironsoulv1_ui_tab_autobuy_scansf"
+    ],
+    "25": [
+      "reference_xifil_hub_full_buildmodelist",
+      "reference_xifil_hub_full_getmodelabel",
+      "reference_xifil_hub_full_getmodenumber",
+      "reference_xifil_hub_full_iscaveworld",
+      "reference_xifil_hub_full_updatemodedropdown"
+    ],
+    "26": [
+      "games_ironsoulbeta_maid",
+      "games_ironsoulbeta_maid_maid_docleaning",
+      "games_ironsoulbeta_maid_maid_givetask",
+      "games_ironsoulbeta_maid_maid_new"
+    ],
+    "27": [
+      "games_ironsoulbeta_ui_tab_farm",
+      "games_ironsoulbeta_ui_tab_farm_getqueueonteleport",
+      "games_ironsoulbeta_ui_tab_farm_removeautoexecfile",
+      "games_ironsoulbeta_ui_tab_farm_writeautoexecfile"
+    ],
+    "28": [
+      "games_ironsoulv1_maid",
+      "games_ironsoulv1_maid_maid_docleaning",
+      "games_ironsoulv1_maid_maid_givetask",
+      "games_ironsoulv1_maid_maid_new"
+    ],
+    "29": [
+      "games_ironsoulv1_ui_tab_farm",
+      "games_ironsoulv1_ui_tab_farm_getqueueonteleport",
+      "games_ironsoulv1_ui_tab_farm_removeautoexecfile",
+      "games_ironsoulv1_ui_tab_farm_writeautoexecfile"
+    ],
+    "30": [
+      "games_ironsoulbeta_ui_tab_vector"
+    ],
+    "31": [
+      "games_ironsoulbeta_ui_tab_visual"
+    ],
+    "32": [
+      "games_ironsoulv1_ui_tab_vector"
+    ],
+    "33": [
+      "games_ironsoulv1_ui_tab_visual"
+    ]
+  },
+  "cohesion": {
+    "0": 0.0797872340425532,
+    "1": 0.0797872340425532,
+    "2": 0.1066066066066066,
+    "3": 0.11596638655462185,
+    "4": 0.08333333333333333,
+    "5": 0.15151515151515152,
+    "6": 0.20833333333333334,
+    "7": 0.30303030303030304,
+    "8": 0.34545454545454546,
+    "9": 0.23636363636363636,
+    "10": 0.4222222222222222,
+    "11": 0.4222222222222222,
+    "12": 0.4222222222222222,
+    "13": 0.4222222222222222,
+    "14": 0.4222222222222222,
+    "15": 0.4222222222222222,
+    "16": 0.5,
+    "17": 0.35714285714285715,
+    "18": 0.42857142857142855,
+    "19": 0.3333333333333333,
+    "20": 0.3333333333333333,
+    "21": 0.3333333333333333,
+    "22": 0.5,
+    "23": 0.5,
+    "24": 0.5,
+    "25": 0.4,
+    "26": 0.5,
+    "27": 0.5,
+    "28": 0.5,
+    "29": 0.5,
+    "30": 1.0,
+    "31": 1.0,
+    "32": 1.0,
+    "33": 1.0
+  },
+  "gods": [
+    {
+      "id": "games_ironsoulv1_farm_startfarmloop",
+      "label": "startFarmLoop()",
+      "degree": 16
+    },
+    {
+      "id": "reference_xifil_hub_full_startfarmloop",
+      "label": "startFarmLoop()",
+      "degree": 14
+    },
+    {
+      "id": "games_ironsoulbeta_farm_startfarmloop",
+      "label": "startFarmLoop()",
+      "degree": 14
+    },
+    {
+      "id": "games_ironsoulbeta_ui_ui_core_getthemecolor",
+      "label": "GetThemeColor()",
+      "degree": 14
+    },
+    {
+      "id": "games_ironsoulv1_ui_ui_core_getthemecolor",
+      "label": "GetThemeColor()",
+      "degree": 14
+    },
+    {
+      "id": "reference_xifil_hub_full_getthemecolor",
+      "label": "GetThemeColor()",
+      "degree": 13
+    },
+    {
+      "id": "reference_xifil_hub_full_applyallvisuals",
+      "label": "ApplyAllVisuals()",
+      "degree": 10
+    },
+    {
+      "id": "games_ironsoulbeta_ui_ui_core_applyallvisuals",
+      "label": "ApplyAllVisuals()",
+      "degree": 10
+    },
+    {
+      "id": "games_ironsoulv1_ui_ui_core_applyallvisuals",
+      "label": "ApplyAllVisuals()",
+      "degree": 10
+    },
+    {
+      "id": "games_ironsoulbeta_ui_ui_core_registerthemeelement",
+      "label": "RegisterThemeElement()",
+      "degree": 9
+    }
+  ],
+  "surprises": [
+    {
+      "source": "makeCatBtn()",
+      "target": "RegisterTranslation()",
+      "source_files": [
+        "games/ironsoulv1/ui/tab_autobuy.lua",
+        "games/ironsoulv1/translate.lua"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities; peripheral node `makeCatBtn()` unexpectedly reaches hub `RegisterTranslation()`"
+    },
+    {
+      "source": "startFarmLoop()",
+      "target": "GetPositionCFrame()",
+      "source_files": [
+        "games/ironsoulbeta/farm.lua",
+        "games/ironsoulbeta/combat.lua"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; peripheral node `GetPositionCFrame()` unexpectedly reaches hub `startFarmLoop()`"
+    },
+    {
+      "source": "startFarmLoop()",
+      "target": "ApplyMovement()",
+      "source_files": [
+        "games/ironsoulbeta/farm.lua",
+        "games/ironsoulbeta/combat.lua"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; peripheral node `ApplyMovement()` unexpectedly reaches hub `startFarmLoop()`"
+    },
+    {
+      "source": "FireReplayRemote()",
+      "target": "CustomNotify()",
+      "source_files": [
+        "games/ironsoulbeta/combat.lua",
+        "games/ironsoulbeta/notify.lua"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; peripheral node `FireReplayRemote()` unexpectedly reaches hub `CustomNotify()`"
+    },
+    {
+      "source": "PlayIntroAnimation()",
+      "target": "GetThemeColor()",
+      "source_files": [
+        "games/ironsoulbeta/init.lua",
+        "games/ironsoulbeta/ui/ui_core.lua"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `CustomNotify()` connect `startFarmLoop` to `config_system.lua`?",
+      "why": "High betweenness centrality (0.010) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `CustomNotify()` connect `combat.lua` to `tab_sell.lua`?",
+      "why": "High betweenness centrality (0.009) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 12 inferred relationships involving `startFarmLoop()` (e.g. with `ApplyMovement()` and `checkVictoryUi()`) actually correct?",
+      "why": "`startFarmLoop()` has 12 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 12 inferred relationships involving `startFarmLoop()` (e.g. with `ApplyMovement()` and `checkVictoryUi()`) actually correct?",
+      "why": "`startFarmLoop()` has 12 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `combat.lua` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.0797872340425532 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `startFarmLoop` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.0797872340425532 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `ui_core.lua` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.1066066066066066 - nodes in this community are weakly interconnected."
+    }
+  ]
+}
