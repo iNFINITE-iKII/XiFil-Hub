@@ -95,6 +95,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     await insertLicenses(entries);
+    console.log(`[genkey] Inserted ${entries.length} key(s) into DB:`, entries.map(e => e.licenseKey).join(", "));
 
     const label = durationLabel(type, duration);
     const keyBlock = entries.map((e) => `\`${e.licenseKey}\``).join("\n");
