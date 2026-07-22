@@ -3,11 +3,12 @@ import {
   ChatInputCommandInteraction,
   EmbedBuilder,
   PermissionFlagsBits,
+  MessageFlags,
 } from "discord.js";
 import { randomUUID } from "crypto";
 import { getByKey, insertLicenses } from "../database.js";
 import { generateLicenseKey, durationLabel } from "../utils.js";
-import { safeDefer } from "../utils/safeDefer.js";
+import { logger } from "../../lib/logger.js";
 
 export const data = new SlashCommandBuilder()
   .setName("genkey")
@@ -45,14 +46,14 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!await safeDefer(interaction)) return;
-
   const type = interaction.options.get("type")?.value as string;
   const duration = (interaction.options.get("duration")?.value as number) ?? 1;
   const amount = (interaction.options.get("amount")?.value as number) ?? 1;
 
+  // Validation error — reply immediately, no defer needed
   if (type !== "PERMANENT" && !interaction.options.get("duration")) {
-    await interaction.editReply({
+    await interaction.reply({
+      flags: MessageFlags.Ephemeral,
       embeds: [
         new EmbedBuilder()
           .setColor(0xd50000)
@@ -60,9 +61,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           .setDescription("You must specify a `duration` for non-permanent keys.")
           .setTimestamp(),
       ],
-    });
+    }).catch(() => null);
     return;
   }
+
+  // Fire deferReply immediately — don't await yet.
+  // Key generation and DB insert run in parallel with the HTTP round-trip to Discord.
+  // This maximises the chance of beating the 3-second window even under latency.
+  const deferPromise = interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch((err: unknown) => {
+    const code = (err as { code?: number })?.code;
+    logger.warn({ interactionId: interaction.id, code }, "genkey: deferReply failed");
+    return null; // null = defer failed, but we still save keys
+  });
 
   try {
     const now = Date.now();
@@ -94,8 +104,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       });
     }
 
+    // Insert to DB — this runs regardless of whether defer succeeded
     await insertLicenses(entries);
-    console.log(`[genkey] Inserted ${entries.length} key(s) into DB:`, entries.map(e => e.licenseKey).join(", "));
+    const keyList = entries.map((e) => e.licenseKey).join(", ");
+    console.log(`[genkey] ✅ Inserted ${entries.length} key(s) into DB: ${keyList}`);
+    logger.info({ keys: keyList, issuedBy: interaction.user.id }, "genkey: keys saved");
 
     const label = durationLabel(type, duration);
     const keyBlock = entries.map((e) => `\`${e.licenseKey}\``).join("\n");
@@ -112,16 +125,29 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .setFooter({ text: "License Manager • Keys are inactive until first activation" })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    // Now check if defer succeeded
+    const deferred = await deferPromise;
+    if (deferred !== null) {
+      await interaction.editReply({ embeds: [embed] });
+    } else {
+      // Defer expired — keys are saved but we can't reply to this interaction.
+      // Keys are visible in Railway logs above.
+      console.log(`[genkey] ⚠️ Interaction expired (10062) but keys were saved to DB: ${keyList}`);
+    }
   } catch (err) {
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xd50000)
-          .setTitle("❌ Error")
-          .setDescription(`Failed to generate keys: ${String(err)}`)
-          .setTimestamp(),
-      ],
-    });
+    console.error("[genkey] ❌ Error during key generation/insert:", err);
+    logger.error({ err }, "genkey: failed");
+    const deferred = await deferPromise;
+    if (deferred !== null) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xd50000)
+            .setTitle("❌ Error")
+            .setDescription(`Failed to generate keys: ${String(err)}`)
+            .setTimestamp(),
+        ],
+      });
+    }
   }
 }
